@@ -1,7 +1,8 @@
 import type { NextFunction } from 'grammy';
-import type { BotContext } from '../types';
-import { handleWeightInput } from '../commands/weight';
 import { isEatingWindow } from '../../utils/day-type';
+import { foodNutritionHandler, foodTextHandler } from '../commands/food';
+import { handleWeightInput } from '../commands/weight';
+import type { BotContext } from '../types';
 
 /** Regex: plain number or decimal — treated as weight input */
 const WEIGHT_PATTERN = /^\d{2,3}([.,]\d{1,2})?$/;
@@ -31,8 +32,18 @@ export async function inputDetector(ctx: BotContext, next: NextFunction): Promis
     return;
   }
 
-  if (ctx.session.step === 'awaiting_food_text' || ctx.session.step === 'awaiting_food_confirm') {
-    await next(); // food command handlers pick this up
+  if (ctx.session.step === 'awaiting_food_text') {
+    await foodTextHandler(ctx);
+    return;
+  }
+
+  if (ctx.session.step === 'awaiting_food_nutrition') {
+    await foodNutritionHandler(ctx);
+    return;
+  }
+
+  if (ctx.session.step === 'awaiting_food_confirm' || ctx.session.step === 'awaiting_food_grams') {
+    await next(); // future food flow handlers pick this up
     return;
   }
 
@@ -58,7 +69,7 @@ export async function inputDetector(ctx: BotContext, next: NextFunction): Promis
       return;
     }
     ctx.session.step = 'awaiting_food_text';
-    await next(); // food command handler picks this up
+    await foodTextHandler(ctx);
     return;
   }
 

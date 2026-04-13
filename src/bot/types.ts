@@ -1,4 +1,4 @@
-import { type Context, type SessionFlavor } from 'grammy';
+import type { Context, SessionFlavor } from 'grammy';
 import type { DbUser, PendingFoodItem } from '../db/types';
 
 export interface SessionData {
@@ -7,6 +7,7 @@ export interface SessionData {
     | 'awaiting_weight'
     | 'awaiting_weight_not_fasted' // user said "не натощак"
     | 'awaiting_food_text'
+    | 'awaiting_food_nutrition' // food items parsed, waiting for kcal + protein
     | 'awaiting_food_grams' // user selected a frequent food, now we need grams
     | 'awaiting_food_confirm'
     | 'awaiting_steps'

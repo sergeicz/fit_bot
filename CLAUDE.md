@@ -21,11 +21,20 @@ A personal Telegram bot (grammY + TypeScript) that acts as a data-driven persona
 ## Development Commands
 
 ```bash
-npm run dev        # run bot in watch mode
-npm run build      # compile TypeScript
-npm run start      # run compiled bot
-npm run lint       # lint
+npm run dev        # run bot in watch mode (tsx watch)
+npm run build      # compile TypeScript to dist/
+npm run start      # run compiled bot (dist/index.js)
+npm run lint       # Biome check + auto-fix
+npm run test       # Vitest (no tests yet — add in src/**/*.test.ts)
+npx tsx scripts/migrate.ts  # run DB migrations against Supabase
 ```
+
+## Code Style
+
+Linter/formatter is **Biome** (`biome.json`), not ESLint. Rules:
+- Single quotes, semicolons always, trailing commas
+- 2-space indent, 100-char line width
+- `noExplicitAny` is a warning, not an error
 
 ## Required Environment Variables
 
@@ -39,6 +48,28 @@ OPENROUTER_API_KEY=
 USDA_API_KEY=
 WEBAPP_URL=
 ```
+
+## Implementation Status
+
+**Stage 1 complete** (Railway + Supabase deployed):
+- `/start`, `/menu` commands with main keyboard
+- Weight logging (fasted/non-fasted, 7-day trend, diet break detection)
+- `authMiddleware` — upserts user in DB, attaches `ctx.dbUser`
+- `inputDetector` middleware — routes free-text by session step or pattern
+- Morning cron: 08:00 / 09:30 / 11:00 weight reminders (node-cron, in-process)
+- All DB tables created via `migrations/001_initial.sql`
+
+**Not yet implemented**: food logging, food APIs, workouts, adaptation, AI, WebApp.
+
+## Key Patterns
+
+**`BotContext`** (`src/bot/types.ts`): all handlers receive `ctx.dbUser: DbUser` injected by `authMiddleware`. Never access the DB directly in commands — use services.
+
+**Session state machine** (`ctx.session.step`): multi-step flows (weight confirm, food confirm) use the `step` field. `inputDetector` runs first, checks `step`, routes accordingly. Reset `step` to `null` when flow completes.
+
+**Cron**: uses `node-cron` in-process (not Railway native cron). Requires `TZ=Europe/Moscow` env var on Railway for Moscow-time expressions to work.
+
+**Services pattern**: `src/services/*.service.ts` own all DB queries for their domain. Commands import services, never `supabase` directly.
 
 ## Planned Project Structure
 

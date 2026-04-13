@@ -1,9 +1,15 @@
 import { Bot, session } from 'grammy';
-import type { BotContext, SessionData } from './types';
-import { authMiddleware } from './middlewares/auth';
-import { inputDetector } from './middlewares/input-detector';
+import {
+  dailySummaryHandler,
+  foodCommand,
+  foodMenuHandler,
+  skipMealHandler,
+} from './commands/food';
 import { startCommand } from './commands/start';
 import { weightCallbackHandler, weightTextHandler } from './commands/weight';
+import { authMiddleware } from './middlewares/auth';
+import { inputDetector } from './middlewares/input-detector';
+import type { BotContext, SessionData } from './types';
 
 const token = process.env.BOT_TOKEN;
 if (!token) throw new Error('Missing BOT_TOKEN environment variable');
@@ -24,13 +30,21 @@ bot.use(authMiddleware);
 // ─── Commands ─────────────────────────────────────────────────────────────────
 bot.command('start', startCommand);
 bot.command('menu', startCommand);
+bot.command('food', foodCommand);
 
 // ─── Callback queries ─────────────────────────────────────────────────────────
 bot.callbackQuery('action:log_weight', weightCallbackHandler);
 bot.callbackQuery('action:main_menu', async (ctx) => {
   await ctx.answerCallbackQuery();
+  ctx.session.step = null;
+  ctx.session.pendingFood = undefined;
   await startCommand(ctx);
 });
+bot.callbackQuery('action:food_menu', foodMenuHandler);
+bot.callbackQuery('action:daily_summary', dailySummaryHandler);
+bot.callbackQuery('food:skip_meal1', (ctx) => skipMealHandler(ctx, 1));
+bot.callbackQuery('food:skip_meal2', (ctx) => skipMealHandler(ctx, 2));
+bot.callbackQuery('food:skip_meal3', (ctx) => skipMealHandler(ctx, 3));
 
 // ─── Free-text routing ────────────────────────────────────────────────────────
 // inputDetector runs first to route by session step or auto-detect intent.
