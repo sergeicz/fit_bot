@@ -49,7 +49,16 @@ export async function inputDetector(ctx: BotContext, next: NextFunction): Promis
   }
 
   if (ctx.session.step === 'awaiting_food_confirm' || ctx.session.step === 'awaiting_food_grams') {
-    await next(); // future food flow handlers pick this up
+    await next();
+    return;
+  }
+
+  if (
+    ctx.session.step === 'awaiting_recipe_name' ||
+    ctx.session.step === 'awaiting_recipe_ingredients' ||
+    ctx.session.step === 'awaiting_recipe_portion'
+  ) {
+    await next(); // recipe handlers are registered separately in bot/index.ts
     return;
   }
 
