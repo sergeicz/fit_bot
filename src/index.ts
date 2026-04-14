@@ -145,13 +145,8 @@ app.post('/api/verify', async (req, res) => {
   });
 });
 
-// Serve index.html — only if accessed from Telegram (tgWebAppData query param present)
-app.get('/', (req, res) => {
-  // tgWebAppData is added by Telegram when opening Mini App
-  if (!req.query.tgWebAppData) {
-    return res.status(404).send('Not Found');
-  }
-
+// Serve index.html — client-side JS handles Telegram validation
+app.get('/', (_req, res) => {
   const htmlPath = path.join(webappDir, 'index.html');
   if (!fs.existsSync(htmlPath)) {
     return res.status(404).send('WebApp not built. Run `npm run build` first.');
@@ -159,7 +154,6 @@ app.get('/', (req, res) => {
 
   let html = fs.readFileSync(htmlPath, 'utf-8');
 
-  // Inject config so the client-side code can verify with the server
   const gateway = (process.env.WEBAPP_URL || 'https://fit.pushkarev.online').replace(/\/$/, '');
   html = html.replace('__WEBAPP_GATEWAY__', gateway);
 
