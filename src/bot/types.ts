@@ -14,6 +14,9 @@ export interface SessionData {
     | 'awaiting_recipe_ingredients'
     | 'awaiting_recipe_portion'
     | 'awaiting_search_grams'
+    | 'awaiting_measurements_height'
+    | 'awaiting_measurements_waist'
+    | 'awaiting_measurements_neck'
     | null;
 
   /** Food items parsed and waiting for user confirmation */
@@ -27,6 +30,9 @@ export interface SessionData {
     name: string;
     editingId?: string; // set when editing existing recipe
   };
+
+  /** Waist value stored between measurement steps */
+  pendingMeasurementWaist?: number;
 
   /** Food search results waiting for user to pick one */
   pendingSearchResults?: Array<{

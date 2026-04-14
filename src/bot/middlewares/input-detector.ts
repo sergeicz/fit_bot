@@ -4,6 +4,11 @@ import { isEatingWindow } from '../../utils/day-type';
 import { foodNutritionHandler, foodTextHandler } from '../commands/food';
 import { foodSearchGramsHandler, foodSearchHandler } from '../commands/food-search';
 import {
+  measurementsHeightHandler,
+  measurementsNeckHandler,
+  measurementsWaistHandler,
+} from '../commands/measurements';
+import {
   recipeIngredientsHandler,
   recipeNameHandler,
   recipePortionHandler,
@@ -80,6 +85,21 @@ export async function inputDetector(ctx: BotContext, next: NextFunction): Promis
 
   if (ctx.session.step === 'awaiting_search_grams') {
     await foodSearchGramsHandler(ctx);
+    return;
+  }
+
+  if (ctx.session.step === 'awaiting_measurements_height') {
+    await measurementsHeightHandler(ctx);
+    return;
+  }
+
+  if (ctx.session.step === 'awaiting_measurements_waist') {
+    await measurementsWaistHandler(ctx);
+    return;
+  }
+
+  if (ctx.session.step === 'awaiting_measurements_neck') {
+    await measurementsNeckHandler(ctx);
     return;
   }
 

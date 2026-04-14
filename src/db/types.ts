@@ -6,6 +6,7 @@ export interface DbUser {
   goal_weight: number;
   start_date: string; // 'YYYY-MM-DD'
   current_cycle: number;
+  height_cm: number | null;
   created_at: string;
 }
 

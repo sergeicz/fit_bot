@@ -13,6 +13,7 @@ export function mainKeyboard(): InlineKeyboard {
     .text('🚶 Шаги', 'action:log_steps')
     .text('📖 Рецепты', 'action:recipes_menu')
     .row()
+    .text('📏 Замеры', 'action:measurements_menu')
     .webApp('📈 Прогресс', `${WEBAPP_URL}/app`);
 }
 

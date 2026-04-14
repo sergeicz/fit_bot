@@ -4,6 +4,7 @@ import { supabase } from '../db/client';
 import { checkAdaptation } from '../services/adaptation.service';
 import { getAICommentary } from '../services/ai.service';
 import { statusLabel } from '../services/food.service';
+import { measurementsService } from '../services/measurements.service';
 import {
   average,
   countByStatus,
@@ -48,7 +49,7 @@ export async function sendWeeklyReport(): Promise<void> {
     const { cycleNumber, isDietBreak } = getCycleInfo(weekNumber);
 
     // Fetch current + previous week summaries + adaptation in parallel
-    const [currentRes, prevRes, adaptation, aiComment] = await Promise.all([
+    const [currentRes, prevRes, adaptation, aiComment, lastMeasurement] = await Promise.all([
       supabase
         .from('daily_summary')
         .select('date, total_calories, total_protein, target_calories, steps, status, weight')
@@ -74,6 +75,8 @@ export async function sendWeeklyReport(): Promise<void> {
         eventDetail:
           'Конец недели — дай краткий анализ итогов недели и главную задачу на следующую.',
       }),
+
+      measurementsService.getLast(user.id, 1),
     ]);
 
     const days = currentRes.data ?? [];
@@ -173,8 +176,16 @@ export async function sendWeeklyReport(): Promise<void> {
     }
 
     // ── Measurements reminder ──
-    text += '\n📏 *Обмеры — не забудь зафиксировать:*\n';
-    text += 'Талия / Грудь / Шея (запиши в заметки или в чат)\n';
+    const lastM = lastMeasurement[0];
+    if (lastM?.body_fat !== null && lastM) {
+      const mDate = new Date(lastM.date).toLocaleDateString('ru-RU', {
+        day: 'numeric',
+        month: 'short',
+      });
+      text += `\n📏 Последние замеры (${mDate}): талия ${lastM.waist} см · жир *${lastM.body_fat}%* · мышцы ${lastM.lean_mass} кг\n`;
+    } else {
+      text += '\n📏 *Замеры не внесены* — самое время сделать!\n';
+    }
 
     // ── Adaptation warning ──
     if (adaptation.recommendation) {
@@ -186,7 +197,10 @@ export async function sendWeeklyReport(): Promise<void> {
       text += `\n🤖 _${aiComment}_`;
     }
 
-    const keyboard = new InlineKeyboard().text('🏠 Меню', 'action:main_menu');
+    const keyboard = new InlineKeyboard()
+      .text('📏 Внести замеры', 'action:log_measurements')
+      .row()
+      .text('🏠 Меню', 'action:main_menu');
 
     try {
       await bot.api.sendMessage(user.tg_id, text, {

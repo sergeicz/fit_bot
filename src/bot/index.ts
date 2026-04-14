@@ -24,6 +24,14 @@ import {
   recipesMenuHandler,
 } from './commands/recipes';
 import { foodSearchUseCallback } from './commands/food-search';
+import {
+  logMeasurementsHandler,
+  measurementsHeightHandler,
+  measurementsHistoryHandler,
+  measurementsMenuHandler,
+  measurementsNeckHandler,
+  measurementsWaistHandler,
+} from './commands/measurements';
 import { stepsCallbackHandler, stepsTextHandler } from './commands/steps';
 import { weightCallbackHandler, weightTextHandler } from './commands/weight';
 import { backToMenuKeyboard } from './keyboards/main';
@@ -68,6 +76,9 @@ bot.callbackQuery('food:skip_meal1', (ctx) => skipMealHandler(ctx, 1));
 bot.callbackQuery('food:skip_meal2', (ctx) => skipMealHandler(ctx, 2));
 bot.callbackQuery('food:skip_meal3', (ctx) => skipMealHandler(ctx, 3));
 bot.callbackQuery(/^food_search:use:/, foodSearchUseCallback);
+bot.callbackQuery('action:measurements_menu', measurementsMenuHandler);
+bot.callbackQuery('action:log_measurements', logMeasurementsHandler);
+bot.callbackQuery('action:measurements_history', measurementsHistoryHandler);
 bot.callbackQuery('action:log_steps', stepsCallbackHandler);
 bot.callbackQuery('action:recipes_menu', recipesMenuHandler);
 bot.callbackQuery('recipe:list', recipeListHandler);
