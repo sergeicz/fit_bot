@@ -9,9 +9,7 @@ export function mainKeyboard(): InlineKeyboard {
     .text('📊 Итог дня', 'action:daily_summary')
     .row()
     .text('🚶 Шаги', 'action:log_steps')
-    .text('📈 Прогресс', 'action:progress')
-    .row()
-    .text('🤖 Спросить AI', 'action:ask_ai');
+    .text('📈 Прогресс', 'action:progress');
 }
 
 export function backToMenuKeyboard(): InlineKeyboard {
