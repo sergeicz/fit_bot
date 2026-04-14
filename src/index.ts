@@ -155,10 +155,8 @@ app.get('/', (_req, res) => {
   let html = fs.readFileSync(htmlPath, 'utf-8');
 
   // Inject config so the client-side code can verify with the server
-  html = html.replace(
-    '__WEBAPP_GATEWAY__',
-    process.env.WEBAPP_URL || 'https://fit.pushkarev.online',
-  );
+  const gateway = (process.env.WEBAPP_URL || 'https://fit.pushkarev.online').replace(/\/$/, '');
+  html = html.replace('__WEBAPP_GATEWAY__', gateway);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
