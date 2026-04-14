@@ -63,12 +63,7 @@ async function buildContextText(
 
   // Parallel DB queries
   const [todaySummaryRes, weightHistoryRes, last7SummariesRes] = await Promise.all([
-    supabase
-      .from('daily_summary')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('date', today)
-      .single(),
+    supabase.from('daily_summary').select('*').eq('user_id', userId).eq('date', today).single(),
 
     supabase
       .from('weights')
@@ -80,7 +75,7 @@ async function buildContextText(
 
     supabase
       .from('daily_summary')
-      .select('date, total_calories, total_protein, status, weight, target_calories')
+      .select('date, total_calories, total_protein, status, weight, target_calories, steps')
       .eq('user_id', userId)
       .order('date', { ascending: false })
       .limit(8),
@@ -91,7 +86,7 @@ async function buildContextText(
   const last7 = (last7SummariesRes.data ?? []).filter((d) => d.date !== today).slice(0, 7);
 
   // ── Today ──
-  let ctx = `=== КОНТЕКСТ ===\n`;
+  let ctx = '=== КОНТЕКСТ ===\n';
   ctx += `Дата: ${formatDateRu(now)} | Тип дня: ${getDayTypeLabel(dayType)}\n`;
 
   if (isDietBreak) {
@@ -100,7 +95,7 @@ async function buildContextText(
     ctx += `Неделя ${weekNumber}, Цикл ${cycleNumber} | Цель: ${targetCalories} ккал\n`;
   }
 
-  ctx += `\nСЕГОДНЯ:\n`;
+  ctx += '\nСЕГОДНЯ:\n';
   if (todaySummary) {
     const kcal = Math.round(todaySummary.total_calories);
     const protein = Math.round(todaySummary.total_protein);
@@ -110,17 +105,25 @@ async function buildContextText(
       ctx += `• Белок: ${protein}г / 160г\n`;
       if (todaySummary.status) ctx += `• Статус: ${statusLabel(todaySummary.status)}\n`;
     } else {
-      ctx += `• Питание: не записано\n`;
+      ctx += '• Питание: не записано\n';
+    }
+    if (todaySummary.steps != null) {
+      const stepsIcon = todaySummary.steps >= 6000 ? '✅' : todaySummary.steps < 4000 ? '🚨' : '⚠️';
+      ctx += `• Шаги: ${stepsIcon} ${todaySummary.steps.toLocaleString('ru')} / 6000–8000\n`;
+    } else if (todaySummary.steps_unavailable) {
+      ctx += '• Шаги: часы не носил\n';
+    } else {
+      ctx += '• Шаги: не записаны\n';
     }
   } else {
-    ctx += `• Данных за сегодня нет\n`;
+    ctx += '• Данных за сегодня нет\n';
   }
 
   // ── Weight trend ──
   if (weightHistory.length > 0) {
-    ctx += `\nТРЕНД ВЕСА (натощак):\n`;
+    ctx += '\nТРЕНД ВЕСА (натощак):\n';
     const recent = weightHistory.slice(0, 7);
-    ctx += recent.map((w) => `${w.date}: ${w.weight} кг`).join(' | ') + '\n';
+    ctx += `${recent.map((w) => `${w.date}: ${w.weight} кг`).join(' | ')}\n`;
 
     if (weightHistory.length >= 2) {
       const latest = weightHistory[0].weight;
@@ -141,13 +144,14 @@ async function buildContextText(
 
   // ── Last 7 days ──
   if (last7.length > 0) {
-    ctx += `\nПОСЛЕДНИЕ 7 ДНЕЙ:\n`;
-    ctx += `Дата       | Ккал | Белок | Статус\n`;
+    ctx += '\nПОСЛЕДНИЕ 7 ДНЕЙ:\n';
+    ctx += 'Дата       | Ккал | Белок | Шаги  | Статус\n';
     for (const d of last7) {
       const kcal = Math.round(d.total_calories ?? 0);
       const protein = Math.round(d.total_protein ?? 0);
+      const stepsStr = d.steps != null ? d.steps.toLocaleString('ru').padStart(5) : '  н/д';
       const status = d.status ? statusLabel(d.status) : '—';
-      ctx += `${d.date} | ${kcal.toString().padStart(4)} | ${protein}г | ${status}\n`;
+      ctx += `${d.date} | ${kcal.toString().padStart(4)} | ${protein}г | ${stepsStr} | ${status}\n`;
     }
 
     // Weekly averages (last 7 days with food data)
@@ -170,11 +174,10 @@ async function buildContextText(
   const weeksElapsed = weekNumber;
   const remaining = Number((currentWeight - goalWeight).toFixed(1));
   const pace = weeksElapsed > 0 ? Number((totalLost / weeksElapsed).toFixed(2)) : 0;
-  const expectedWeeks =
-    pace > 0 ? Math.round(remaining / pace) : null;
+  const expectedWeeks = pace > 0 ? Math.round(remaining / pace) : null;
   const weightCorridor = getCycleWeightCorridor(cycleNumber);
 
-  ctx += `\nОБЩАЯ КАРТИНА:\n`;
+  ctx += '\nОБЩАЯ КАРТИНА:\n';
   ctx += `• Старт: ${startWeight} кг → Сейчас: ${currentWeight} кг → Цель: ${goalWeight} кг\n`;
   ctx += `• Прошло: ${weeksElapsed} нед. | Потеряно: ${totalLost > 0 ? totalLost : 0} кг\n`;
   ctx += `• Темп: ${pace > 0 ? `${pace} кг/нед` : 'данных пока мало'}\n`;
@@ -251,10 +254,7 @@ async function callOpenRouter(
   return data.choices[0].message.content.trim();
 }
 
-async function callAI(
-  contextText: string,
-  userMessage: string,
-): Promise<string> {
+async function callAI(contextText: string, userMessage: string): Promise<string> {
   try {
     return await callGroq(SYSTEM_PROMPT, contextText, userMessage);
   } catch (err) {
@@ -285,24 +285,15 @@ export async function getAICommentary(params: {
     let userMessage: string;
     switch (trigger) {
       case 'weight':
-        userMessage =
-          `Пользователь только что ${eventDetail ?? 'записал вес'}. ` +
-          `Дай короткий (2–3 предложения) комментарий к прогрессу, опираясь на тренд и цель. ` +
-          `Без списков — просто текст.`;
+        userMessage = `Пользователь только что ${eventDetail ?? 'записал вес'}. Дай короткий (2–3 предложения) комментарий к прогрессу, опираясь на тренд и цель. Без списков — просто текст.`;
         break;
 
       case 'food':
-        userMessage =
-          `Пользователь только что ${eventDetail ?? 'записал приём пищи'}. ` +
-          `Прокомментируй текущую дневную картину (ккал и белок vs цель). ` +
-          `Если нужен конкретный совет — дай 1 действие. Без списков, 2–3 предложения.`;
+        userMessage = `Пользователь только что ${eventDetail ?? 'записал приём пищи'}. Прокомментируй текущую дневную картину (ккал и белок vs цель). Если нужен конкретный совет — дай 1 действие. Без списков, 2–3 предложения.`;
         break;
 
       case 'eod':
-        userMessage =
-          `Конец дня. ${eventDetail ?? ''} ` +
-          `Дай итоговый анализ дня: что хорошо, что подтянуть. ` +
-          `Закончи одним конкретным советом на завтра. 3–4 предложения.`;
+        userMessage = `Конец дня. ${eventDetail ?? ''} Дай итоговый анализ дня: что хорошо, что подтянуть. Закончи одним конкретным советом на завтра. 3–4 предложения.`;
         break;
 
       case 'question':
@@ -315,9 +306,7 @@ export async function getAICommentary(params: {
     const knowledgeQuery = `${trigger} ${eventDetail ?? ''} ${userMessage}`;
     const knowledgeContext = findRelevantChunks(knowledgeQuery, 3);
 
-    const fullContext = knowledgeContext
-      ? `${contextText}\n\n${knowledgeContext}`
-      : contextText;
+    const fullContext = knowledgeContext ? `${contextText}\n\n${knowledgeContext}` : contextText;
 
     const response = await callAI(fullContext, userMessage);
     return response || null;

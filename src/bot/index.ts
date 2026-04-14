@@ -8,6 +8,7 @@ import {
   skipMealHandler,
 } from './commands/food';
 import { startCommand } from './commands/start';
+import { stepsCallbackHandler, stepsTextHandler } from './commands/steps';
 import { weightCallbackHandler, weightTextHandler } from './commands/weight';
 import { authMiddleware } from './middlewares/auth';
 import { inputDetector } from './middlewares/input-detector';
@@ -49,6 +50,7 @@ bot.callbackQuery('food:manual_entry', foodManualEntryHandler);
 bot.callbackQuery('food:skip_meal1', (ctx) => skipMealHandler(ctx, 1));
 bot.callbackQuery('food:skip_meal2', (ctx) => skipMealHandler(ctx, 2));
 bot.callbackQuery('food:skip_meal3', (ctx) => skipMealHandler(ctx, 3));
+bot.callbackQuery('action:log_steps', stepsCallbackHandler);
 
 // ─── Free-text routing ────────────────────────────────────────────────────────
 // inputDetector runs first to route by session step or auto-detect intent.
@@ -56,6 +58,9 @@ bot.on('message:text', inputDetector);
 
 // Catch unhandled weight text (when step is active but message handler wasn't reached)
 bot.on('message:text', weightTextHandler);
+
+// Steps text handler
+bot.on('message:text', stepsTextHandler);
 
 // ─── Error handler ────────────────────────────────────────────────────────────
 bot.catch((err) => {
