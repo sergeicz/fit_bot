@@ -64,7 +64,9 @@ async function searchCache(userId: string, name: string): Promise<FoodNutrition 
 
 async function searchOpenFoodFacts(name: string): Promise<FoodNutrition | null> {
   try {
-    const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(name)}&json=1&action=process&search_simple=1&page_size=5&fields=product_name,nutriments`;
+    // Append "raw" to bias search toward uncooked/unprocessed products
+    const query = `${name} raw`;
+    const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&action=process&search_simple=1&page_size=5&fields=product_name,nutriments`;
 
     const res = await fetch(url, { signal: AbortSignal.timeout(6_000) });
     if (!res.ok) return null;
@@ -129,7 +131,7 @@ async function estimateWithAI(name: string): Promise<FoodNutrition | null> {
           },
           {
             role: 'user',
-            content: `КБЖУ для "${name}" на 100г. Формат: {"kcal":0,"protein":0,"fat":0,"carbs":0}`,
+            content: `КБЖУ для "${name}" в СЫРОМ виде на 100г (не варёный, не жареный). Формат: {"kcal":0,"protein":0,"fat":0,"carbs":0}`,
           },
         ],
         temperature: 0.1,
@@ -275,9 +277,10 @@ export function formatFoodSearchResults(results: FoodSearchResult[]): string {
       if (!r.nutrition) continue;
       const n = r.nutrition;
       const label = SOURCE_LABEL[n.source];
-      text += `• ${r.item.name} ${r.item.grams}г ${label} — *${n.kcal} ккал*, ${n.protein}г белка`;
-      if (n.fat > 0 || n.carbs > 0) text += `, ${n.fat}г жира, ${n.carbs}г углеводов`;
-      text += '\n';
+      text += `• *${r.item.name}* ${r.item.grams}г ${label}\n`;
+      text += `  ${n.kcal} ккал · ${n.protein}г белка`;
+      if (n.fat > 0 || n.carbs > 0) text += ` · ${n.fat}г жира · ${n.carbs}г углеводов`;
+      text += `\n  _на 100г: ${n.kcalPer100g} ккал · ${n.proteinPer100g}г белка_\n`;
     }
   }
 
