@@ -2,162 +2,339 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="googlebot" content="noindex, nofollow">
   <title>Фитнес Прогресс</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --glass-bg: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.15);
+      --glass-shine: rgba(255, 255, 255, 0.06);
+      --glass-blur: blur(24px) saturate(180%);
+      --radius-card: 20px;
+      --radius-pill: 50px;
+      --accent: #3d9ef5;
+      --accent-green: #34d46a;
+      --accent-orange: #ff8c42;
+      --accent-red: #ff4d6d;
+      --text-primary: rgba(255,255,255,0.95);
+      --text-secondary: rgba(255,255,255,0.55);
+      --text-hint: rgba(255,255,255,0.35);
+      --shadow: 0 8px 32px rgba(0,0,0,0.3);
+      --transition: 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    html, body {
+      height: 100%;
+      overflow-x: hidden;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--tg-theme-bg-color, #f5f5f5);
-      color: var(--tg-theme-text-color, #222);
-      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      background: #0d0d1a;
+      color: var(--text-primary);
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
     }
 
+    /* ── Animated background ── */
+    .bg-orbs {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.35;
+      animation: drift 18s ease-in-out infinite alternate;
+    }
+    .orb-1 { width: 380px; height: 380px; background: #1a3a8f; top: -80px; left: -80px; animation-delay: 0s; }
+    .orb-2 { width: 320px; height: 320px; background: #0f6b3a; bottom: 10%; right: -60px; animation-delay: -6s; }
+    .orb-3 { width: 260px; height: 260px; background: #6b1a8f; top: 40%; left: 30%; animation-delay: -12s; }
+    @keyframes drift {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(30px, -20px) scale(1.08); }
+    }
+
+    /* ── Scroll wrapper ── */
+    .scroll-root {
+      position: relative;
+      z-index: 1;
+      padding: 0 16px 32px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ── */
     .header {
-      text-align: center;
-      padding: 12px 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 0 16px;
     }
-
-    .header h1 {
-      font-size: 20px;
+    .header-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+    }
+    .header-subtitle {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    .header-badge {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: var(--glass-blur);
+      border-radius: var(--radius-pill);
+      padding: 6px 14px;
+      font-size: 12px;
       font-weight: 600;
+      color: var(--accent);
     }
 
-    .stats {
+    /* ── Glass card mixin ── */
+    .glass {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow), inset 0 1px 0 var(--glass-shine);
+      position: relative;
+      overflow: hidden;
+    }
+    .glass::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(255,255,255,0.07) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* ── Stats grid ── */
+    .stats-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-      margin-bottom: 20px;
+      gap: 10px;
+      margin-bottom: 16px;
     }
 
     .stat-card {
-      background: var(--tg-theme-secondary-bg-color, #fff);
-      border-radius: 12px;
-      padding: 12px;
-      text-align: center;
+      padding: 16px;
+      cursor: default;
+      transition: transform var(--transition), box-shadow var(--transition);
     }
+    .stat-card:active { transform: scale(0.96); }
 
-    .stat-card .value {
-      font-size: 22px;
-      font-weight: 700;
+    .stat-icon {
+      font-size: 20px;
+      margin-bottom: 8px;
+      display: block;
     }
-
-    .stat-card .label {
+    .stat-value {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      line-height: 1;
+    }
+    .stat-label {
       font-size: 11px;
-      color: var(--tg-theme-hint-color, #888);
-      margin-top: 2px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
     }
+    .stat-delta {
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .stat-delta.negative { color: var(--accent-green); }
+    .stat-delta.positive { color: var(--accent-red); }
 
+    /* Tinted glass cards */
+    .stat-weight  { background: rgba(61, 158, 245, 0.1);  border-color: rgba(61, 158, 245, 0.2); }
+    .stat-delta-c { background: rgba(107, 26, 143, 0.12); border-color: rgba(107, 26, 143, 0.22); }
+    .stat-kcal    { background: rgba(255, 140, 66, 0.1);  border-color: rgba(255, 140, 66, 0.2); }
+    .stat-protein { background: rgba(52, 212, 106, 0.1);  border-color: rgba(52, 212, 106, 0.2); }
+
+    /* ── Tabs ── */
+    .tabs-wrap {
+      margin-bottom: 12px;
+      position: relative;
+    }
     .tabs {
       display: flex;
-      gap: 4px;
-      margin-bottom: 16px;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
+      gap: 6px;
+      padding: 5px;
+      border-radius: var(--radius-pill);
     }
-
     .tab {
-      flex: 0 0 auto;
-      padding: 8px 16px;
+      flex: 1;
+      padding: 9px 8px;
       border: none;
-      border-radius: 20px;
-      background: var(--tg-theme-secondary-bg-color, #fff);
-      color: var(--tg-theme-text-color, #222);
-      font-size: 14px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .tab.active {
-      background: var(--tg-theme-button-color, #3390ec);
-      color: var(--tg-theme-button-text-color, #fff);
-    }
-
-    .chart-container {
-      background: var(--tg-theme-secondary-bg-color, #fff);
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-
-    .chart-container h2 {
-      font-size: 15px;
+      border-radius: var(--radius-pill);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 13px;
       font-weight: 600;
-      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      position: relative;
+      z-index: 1;
+      white-space: nowrap;
+    }
+    .tab.active {
+      background: rgba(255,255,255,0.14);
+      color: var(--text-primary);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12);
     }
 
+    /* ── Chart card ── */
+    .chart-card {
+      padding: 18px;
+      margin-bottom: 14px;
+      animation: slideUp 0.4s ease both;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .chart-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
     .chart-wrapper {
       position: relative;
-      height: 250px;
+      height: 220px;
     }
 
+    /* ── Period selector ── */
     .period-selector {
       display: flex;
       justify-content: center;
-      gap: 8px;
-      margin-top: 8px;
+      gap: 6px;
+      margin-top: 12px;
     }
-
     .period-btn {
-      padding: 4px 12px;
-      border: 1px solid var(--tg-theme-hint-color, #aaa);
-      border-radius: 12px;
+      padding: 5px 14px;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-pill);
       background: transparent;
-      color: var(--tg-theme-text-color, #222);
+      color: var(--text-secondary);
       font-size: 12px;
+      font-weight: 600;
       cursor: pointer;
+      transition: all 0.2s ease;
     }
-
     .period-btn.active {
-      background: var(--tg-theme-button-color, #3390ec);
-      color: var(--tg-theme-button-text-color, #fff);
-      border-color: transparent;
+      background: rgba(61, 158, 245, 0.2);
+      border-color: rgba(61, 158, 245, 0.4);
+      color: var(--text-primary);
     }
 
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: var(--tg-theme-hint-color, #888);
+    /* ── Loading / Error ── */
+    .state-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 10;
     }
-
-    .error {
-      text-align: center;
-      padding: 40px;
-      color: #e74c3c;
+    .loader {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: var(--accent);
+      animation: spin 0.8s linear infinite;
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loader-text {
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    .error-card {
+      padding: 32px 24px;
+      text-align: center;
+      max-width: 280px;
+    }
+    .error-icon { font-size: 40px; margin-bottom: 12px; }
+    .error-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .error-msg { font-size: 14px; color: var(--text-secondary); line-height: 1.5; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>📈 Прогресс</h1>
+
+  <!-- Animated background -->
+  <div class="bg-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
   </div>
 
-  <div id="loading" class="loading">Загрузка данных...</div>
-  <div id="error" class="error" style="display: none;"></div>
+  <!-- Loading state -->
+  <div id="loading" class="state-screen">
+    <div class="loader"></div>
+    <div class="loader-text">Загрузка данных…</div>
+  </div>
 
-  <div id="app" style="display: none;">
-    <div class="stats" id="stats"></div>
+  <!-- Error state -->
+  <div id="error" class="state-screen" style="display:none;">
+    <div class="glass error-card">
+      <div class="error-icon">🔒</div>
+      <div class="error-title" id="error-title">Ошибка</div>
+      <div class="error-msg" id="error-msg"></div>
+    </div>
+  </div>
 
-    <div class="tabs">
-      <button class="tab active" data-chart="weight">⚖️ Вес</button>
-      <button class="tab" data-chart="calories">🔥 Калории</button>
-      <button class="tab" data-chart="protein">🥩 Белок</button>
+  <!-- Main app -->
+  <div id="app" class="scroll-root" style="display:none;">
+
+    <div class="header">
+      <div>
+        <div class="header-title">📈 Прогресс</div>
+        <div class="header-subtitle" id="header-sub">Загрузка…</div>
+      </div>
+      <div class="header-badge" id="header-badge">—</div>
     </div>
 
-    <div id="weight-chart" class="chart-container">
-      <h2>⚖️ Динамика веса</h2>
+    <!-- Stats -->
+    <div class="stats-grid" id="stats"></div>
+
+    <!-- Tabs -->
+    <div class="tabs-wrap">
+      <div class="tabs glass">
+        <button class="tab active" data-chart="weight">⚖️ Вес</button>
+        <button class="tab" data-chart="calories">🔥 Калории</button>
+        <button class="tab" data-chart="protein">🥩 Белок</button>
+      </div>
+    </div>
+
+    <!-- Weight chart -->
+    <div id="weight-chart" class="chart-card glass">
+      <div class="chart-title"><span>⚖️</span> Динамика веса</div>
       <div class="chart-wrapper"><canvas id="weightChart"></canvas></div>
       <div class="period-selector">
         <button class="period-btn" data-days="7">1 нед</button>
@@ -167,8 +344,9 @@
       </div>
     </div>
 
-    <div id="calories-chart" class="chart-container" style="display: none;">
-      <h2>🔥 Калории по дням</h2>
+    <!-- Calories chart -->
+    <div id="calories-chart" class="chart-card glass" style="display:none;">
+      <div class="chart-title"><span>🔥</span> Калории по дням</div>
       <div class="chart-wrapper"><canvas id="caloriesChart"></canvas></div>
       <div class="period-selector">
         <button class="period-btn active" data-days="14">2 нед</button>
@@ -177,8 +355,9 @@
       </div>
     </div>
 
-    <div id="protein-chart" class="chart-container" style="display: none;">
-      <h2>🥩 Белок по дням</h2>
+    <!-- Protein chart -->
+    <div id="protein-chart" class="chart-card glass" style="display:none;">
+      <div class="chart-title"><span>🥩</span> Белок по дням</div>
       <div class="chart-wrapper"><canvas id="proteinChart"></canvas></div>
       <div class="period-selector">
         <button class="period-btn active" data-days="14">2 нед</button>
@@ -186,55 +365,48 @@
         <button class="period-btn" data-days="0">Всё</button>
       </div>
     </div>
+
   </div>
 
   <script>
-    // ─── Telegram WebApp init ───────────────────────────────────────────────────
+    // ─── Telegram WebApp init ────────────────────────────────────────────────────
     const tg = window.Telegram.WebApp;
 
-    // Guard: block browser access — only open inside Telegram
     if (!tg.initData) {
       document.getElementById('loading').style.display = 'none';
       const errEl = document.getElementById('error');
-      errEl.style.display = 'block';
-      errEl.innerHTML = '<h2>404</h2><p>Not Found</p>';
+      errEl.style.display = 'flex';
+      document.getElementById('error-title').textContent = '404';
+      document.getElementById('error-msg').textContent = 'Not Found';
       document.title = '404 Not Found';
-      throw new Error('not-telegram'); // stop script execution via uncaught error in loadData
+      throw new Error('not-telegram');
     }
 
     tg.expand();
     tg.ready();
+    tg.setHeaderColor('#0d0d1a');
+    tg.setBackgroundColor('#0d0d1a');
 
-    // ─── Supabase config — fetched from server after Telegram validation ────────
+    // ─── Supabase ────────────────────────────────────────────────────────────────
     const GATEWAY = '__WEBAPP_GATEWAY__';
     let SUPABASE_URL = '';
     let SUPABASE_ANON_KEY = '';
-    let db = null; // renamed to avoid conflict with Supabase CDN global 'supabase'
+    let db = null;
 
     async function initSupabase() {
-      const initData = tg.initData;
-      if (!initData) {
-        throw new Error('Telegram Mini App: initData не доступен');
-      }
-
       const res = await fetch(`${GATEWAY}/api/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData }),
+        body: JSON.stringify({ initData: tg.initData }),
       });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Сервер отклонил доступ');
-      }
-
-      const config = await res.json();
-      SUPABASE_URL = config.supabaseUrl;
-      SUPABASE_ANON_KEY = config.supabaseAnonKey;
+      if (!res.ok) throw new Error(await res.text() || 'Нет доступа');
+      const cfg = await res.json();
+      SUPABASE_URL = cfg.supabaseUrl;
+      SUPABASE_ANON_KEY = cfg.supabaseAnonKey;
       db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     }
 
-    // ─── State ──────────────────────────────────────────────────────────────────
+    // ─── State ───────────────────────────────────────────────────────────────────
     let userId = null;
     let user = null;
     let charts = {};
@@ -242,31 +414,22 @@
     let weightData = [];
     let summaryData = [];
 
-    // ─── Chart.js defaults ──────────────────────────────────────────────────────
-    Chart.defaults.color = getComputedStyle(document.documentElement)
-      .getPropertyValue('--tg-theme-hint-color') || '#888';
-    Chart.defaults.borderColor = 'rgba(0,0,0,0.06)';
+    // ─── Chart.js defaults ───────────────────────────────────────────────────────
+    Chart.defaults.color = 'rgba(255,255,255,0.45)';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
     Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, sans-serif';
 
-    // ─── Data fetching ──────────────────────────────────────────────────────────
+    // ─── Load ────────────────────────────────────────────────────────────────────
     async function loadData() {
       try {
         const initUser = tg.initDataUnsafe?.user;
-        if (!initUser) {
-          throw new Error('Откройте через Telegram');
-        }
+        if (!initUser) throw new Error('Откройте через Telegram');
 
         await initSupabase();
 
         const { data: users } = await db
-          .from('users')
-          .select('*')
-          .eq('tg_id', initUser.id)
-          .single();
-
-        if (!users) {
-          throw new Error('Пользователь не найден. Запустите /start в боте.');
-        }
+          .from('users').select('*').eq('tg_id', initUser.id).single();
+        if (!users) throw new Error('Запустите /start в боте');
 
         user = users;
         userId = users.id;
@@ -281,319 +444,313 @@
 
         document.getElementById('loading').style.display = 'none';
         document.getElementById('app').style.display = 'block';
+
+        renderHeader(initUser);
         renderStats();
         renderCharts();
+
+        tg.HapticFeedback.notificationOccurred('success');
       } catch (err) {
         document.getElementById('loading').style.display = 'none';
-        const errorEl = document.getElementById('error');
-        errorEl.style.display = 'block';
-        errorEl.textContent = err.message;
+        const el = document.getElementById('error');
+        el.style.display = 'flex';
+        document.getElementById('error-title').textContent = 'Ошибка';
+        document.getElementById('error-msg').textContent = err.message;
+        tg.HapticFeedback.notificationOccurred('error');
       }
     }
 
     async function fetchWeight() {
-      const { data } = await db
-        .from('weights')
-        .select('*')
-        .eq('user_id', userId)
-        .order('date', { ascending: true });
+      const { data } = await db.from('weights').select('*')
+        .eq('user_id', userId).order('date', { ascending: true });
       return data || [];
     }
-
     async function fetchSummary() {
-      const { data } = await db
-        .from('daily_summary')
-        .select('*')
-        .eq('user_id', userId)
-        .order('date', { ascending: true });
+      const { data } = await db.from('daily_summary').select('*')
+        .eq('user_id', userId).order('date', { ascending: true });
       return data || [];
     }
-
     async function fetchLatestCompliance() {
       const today = new Date().toISOString().split('T')[0];
-      const { data } = await db
-        .from('data_compliance')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('date', today)
-        .maybeSingle();
+      const { data } = await db.from('data_compliance').select('*')
+        .eq('user_id', userId).eq('date', today).maybeSingle();
       return data;
     }
 
-    // ─── Stats rendering ────────────────────────────────────────────────────────
+    // ─── Header ──────────────────────────────────────────────────────────────────
+    function renderHeader(initUser) {
+      const name = initUser.first_name || 'Атлет';
+      document.getElementById('header-sub').textContent = `Привет, ${name}!`;
+
+      if (weightData.length > 0) {
+        const start = user.start_weight || weightData[0]?.weight || 96;
+        const current = weightData[weightData.length - 1]?.weight || start;
+        const lost = (parseFloat(start) - parseFloat(current)).toFixed(1);
+        document.getElementById('header-badge').textContent = `−${lost} кг`;
+      }
+    }
+
+    // ─── Stats ───────────────────────────────────────────────────────────────────
     function renderStats() {
-      const allWeights = weightData;
-      const allSummary = summaryData;
+      const today = new Date().toISOString().split('T')[0];
+      const todaySummary = summaryData.find(s => s.date === today);
 
-      const currentWeight = allWeights.length > 0
-        ? allWeights[allWeights.length - 1].weight
+      const currentWeight = weightData.length > 0
+        ? parseFloat(weightData[weightData.length - 1].weight).toFixed(1)
         : '—';
 
-      const startWeight = user?.start_weight ?? '—';
-      const delta = allWeights.length > 1
-        ? (parseFloat(allWeights[allWeights.length - 1].weight) - parseFloat(allWeights[0].weight)).toFixed(1)
-        : '—';
+      const delta = weightData.length > 1
+        ? (parseFloat(weightData[weightData.length - 1].weight) - parseFloat(weightData[0].weight)).toFixed(1)
+        : null;
 
-      const last7 = allWeights.slice(-7);
-      const avgWeight = last7.length > 0
-        ? (last7.reduce((a, b) => a + parseFloat(b.weight), 0) / last7.length).toFixed(1)
-        : '—';
+      const todayCal  = todaySummary?.total_calories  ? Math.round(todaySummary.total_calories)  : '—';
+      const todayProt = todaySummary?.total_protein   ? Math.round(todaySummary.total_protein)   : '—';
+      const targetCal = todaySummary?.target_calories ? Math.round(todaySummary.target_calories) : 1700;
 
-      const todaySummary = allSummary.find(s => s.date === new Date().toISOString().split('T')[0]);
-      const todayCal = todaySummary?.total_calories ?? '—';
-      const todayProtein = todaySummary?.total_protein ?? '—';
+      const calStatus = todayCal !== '—'
+        ? Math.abs(todayCal - targetCal) <= 100
+          ? `<span style="color:var(--accent-green)">✓ норма</span>`
+          : todayCal > targetCal
+            ? `<span style="color:var(--accent-orange)">↑ перебор</span>`
+            : `<span style="color:var(--accent-red)">↓ недоел</span>`
+        : '';
 
-      const statsEl = document.getElementById('stats');
-      statsEl.innerHTML = `
-        <div class="stat-card">
-          <div class="value">${typeof currentWeight === 'number' ? currentWeight.toFixed(1) : currentWeight}</div>
-          <div class="label">Текущий вес (кг)</div>
+      const deltaClass = delta !== null ? (parseFloat(delta) < 0 ? 'negative' : 'positive') : '';
+      const deltaSign  = delta !== null ? (parseFloat(delta) > 0 ? '+' : '')  : '';
+
+      document.getElementById('stats').innerHTML = `
+        <div class="glass stat-card stat-weight">
+          <span class="stat-icon">⚖️</span>
+          <div class="stat-value">${currentWeight}</div>
+          <div class="stat-label">Вес, кг</div>
         </div>
-        <div class="stat-card">
-          <div class="value">${typeof delta === 'string' && !isNaN(delta) ? (delta > 0 ? '+' : '') + delta : delta}</div>
-          <div class="label">Изменение (кг)</div>
+        <div class="glass stat-card stat-delta-c">
+          <span class="stat-icon">📉</span>
+          <div class="stat-value">${delta !== null ? deltaSign + delta : '—'}</div>
+          <div class="stat-label">Изменение, кг</div>
+          ${delta !== null ? `<div class="stat-delta ${deltaClass}">от начала</div>` : ''}
         </div>
-        <div class="stat-card">
-          <div class="value">${todayCal}</div>
-          <div class="label">Ккал сегодня</div>
+        <div class="glass stat-card stat-kcal">
+          <span class="stat-icon">🔥</span>
+          <div class="stat-value">${todayCal}</div>
+          <div class="stat-label">Ккал сегодня</div>
+          <div class="stat-delta">${calStatus}</div>
         </div>
-        <div class="stat-card">
-          <div class="value">${todayProtein}г</div>
-          <div class="label">Белок сегодня</div>
+        <div class="glass stat-card stat-protein">
+          <span class="stat-icon">🥩</span>
+          <div class="stat-value">${todayProt !== '—' ? todayProt + 'г' : '—'}</div>
+          <div class="stat-label">Белок сегодня</div>
+          ${todayProt !== '—' ? `<div class="stat-delta ${todayProt >= 160 ? 'negative' : todayProt >= 140 ? '' : 'positive'}">${todayProt >= 160 ? '✓ норма' : '↓ мало'}</div>` : ''}
         </div>
       `;
     }
 
-    // ─── Charts ─────────────────────────────────────────────────────────────────
+    // ─── Charts ──────────────────────────────────────────────────────────────────
+    function filterByDays(data, days) {
+      if (!days) return data;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      return data.filter(d => new Date(d.date) >= cutoff);
+    }
+
+    function movingAverage(data, key, win = 7) {
+      return data.map((d, i) => {
+        const slice = data.slice(Math.max(0, i - win + 1), i + 1);
+        const avg = slice.reduce((a, b) => a + parseFloat(b[key]), 0) / slice.length;
+        return { ...d, [key]: Math.round(avg * 10) / 10 };
+      });
+    }
+
     function renderCharts() {
       renderWeightChart(periodDays.weight);
       renderCaloriesChart(periodDays.calories);
       renderProteinChart(periodDays.protein);
     }
 
-    function filterByDays(data, days) {
-      if (!days || days === 0) return data;
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - days);
-      return data.filter(d => new Date(d.date) >= cutoff);
-    }
-
-    function movingAverage(data, key, window = 7) {
-      return data.map((d, i) => {
-        const start = Math.max(0, i - window + 1);
-        const slice = data.slice(start, i + 1);
-        const avg = slice.reduce((a, b) => a + parseFloat(b[key]), 0) / slice.length;
-        return { ...d, [key]: Math.round(avg * 10) / 10 };
-      });
-    }
-
     function renderWeightChart(days) {
-      const allWeights = weightData;
-      const filtered = filterByDays(allWeights, days);
-
-      const labels = filtered.map(d => d.date);
-      const values = filtered.map(d => parseFloat(d.weight));
-      const fasted = filtered.map(d => d.is_fasted ? parseFloat(d.weight) : null);
+      const filtered = filterByDays(weightData, days);
+      const fasted    = filtered.map(d => d.is_fasted  ? parseFloat(d.weight) : null);
       const nonFasted = filtered.map(d => !d.is_fasted ? parseFloat(d.weight) : null);
-
-      const trendData = movingAverage(filtered, 'weight', 7);
-      const trend = trendData.map(d => parseFloat(d.weight));
+      const trend     = movingAverage(filtered, 'weight', 7).map(d => parseFloat(d.weight));
 
       if (charts.weight) charts.weight.destroy();
-
-      const ctx = document.getElementById('weightChart').getContext('2d');
-      charts.weight = new Chart(ctx, {
+      charts.weight = new Chart(document.getElementById('weightChart'), {
         type: 'line',
         data: {
-          labels,
+          labels: filtered.map(d => d.date),
           datasets: [
             {
-              label: 'Вес (натощак)',
+              label: 'Натощак',
               data: fasted,
-              borderColor: '#3390ec',
-              backgroundColor: 'rgba(51,144,236,0.1)',
+              borderColor: '#3d9ef5',
+              backgroundColor: 'rgba(61,158,245,0.08)',
               tension: 0.3,
               pointRadius: 3,
+              pointBackgroundColor: '#3d9ef5',
               spanGaps: true,
+              fill: true,
             },
             {
-              label: 'Вес (не натощак)',
+              label: 'Не натощак',
               data: nonFasted,
-              borderColor: '#999',
-              borderDash: [5, 5],
+              borderColor: 'rgba(255,255,255,0.3)',
+              borderDash: [4, 4],
               pointRadius: 2,
               pointStyle: 'triangle',
               spanGaps: true,
             },
             {
-              label: 'Тренд (7 дней)',
+              label: 'Тренд 7д',
               data: trend,
-              borderColor: '#ff9800',
-              borderWidth: 2,
+              borderColor: '#ff8c42',
+              borderWidth: 2.5,
               pointRadius: 0,
-              tension: 0.4,
-              fill: false,
+              tension: 0.5,
             },
           ],
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
-          },
-          scales: {
-            x: { display: false },
-            y: {
-              grid: { color: 'rgba(0,0,0,0.05)' },
-              ticks: { callback: v => v + ' кг' },
-            },
-          },
-        },
+        options: chartOptions(v => v + ' кг'),
       });
     }
 
     function renderCaloriesChart(days) {
-      const allSummary = summaryData;
-      const filtered = filterByDays(allSummary, days);
-
-      const labels = filtered.map(d => d.date);
+      const filtered = filterByDays(summaryData, days);
       const actual = filtered.map(d => d.total_calories || 0);
       const target = filtered.map(d => d.target_calories || 0);
 
       if (charts.calories) charts.calories.destroy();
-
-      const ctx = document.getElementById('caloriesChart').getContext('2d');
-      charts.calories = new Chart(ctx, {
+      charts.calories = new Chart(document.getElementById('caloriesChart'), {
         type: 'bar',
         data: {
-          labels,
+          labels: filtered.map(d => d.date),
           datasets: [
             {
               label: 'Факт',
               data: actual,
               backgroundColor: actual.map((a, i) => {
                 const t = target[i];
-                if (!t) return '#888';
-                return Math.abs(a - t) <= 100 ? '#4caf50' : a > t ? '#ff9800' : '#f44336';
+                if (!a) return 'rgba(255,255,255,0.1)';
+                return Math.abs(a - t) <= 100
+                  ? 'rgba(52,212,106,0.7)'
+                  : a > t
+                    ? 'rgba(255,140,66,0.7)'
+                    : 'rgba(255,77,109,0.7)';
               }),
-              borderRadius: 4,
+              borderRadius: 6,
+              borderSkipped: false,
             },
             {
               label: 'Цель',
               data: target,
               type: 'line',
-              borderColor: '#3390ec',
+              borderColor: 'rgba(61,158,245,0.6)',
               borderWidth: 1.5,
               pointRadius: 0,
               borderDash: [4, 4],
             },
           ],
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
-          },
-          scales: {
-            x: { display: false },
-            y: {
-              grid: { color: 'rgba(0,0,0,0.05)' },
-              ticks: { callback: v => v + ' ккал' },
-            },
-          },
-        },
+        options: chartOptions(v => v + ' ккал'),
       });
     }
 
     function renderProteinChart(days) {
-      const allSummary = summaryData;
-      const filtered = filterByDays(allSummary, days);
-
-      const labels = filtered.map(d => d.date);
+      const filtered = filterByDays(summaryData, days);
       const protein = filtered.map(d => d.total_protein || 0);
-      const minLine = Array(filtered.length).fill(160);
 
       if (charts.protein) charts.protein.destroy();
-
-      const ctx = document.getElementById('proteinChart').getContext('2d');
-      charts.protein = new Chart(ctx, {
+      charts.protein = new Chart(document.getElementById('proteinChart'), {
         type: 'line',
         data: {
-          labels,
+          labels: filtered.map(d => d.date),
           datasets: [
             {
-              label: 'Белок (г)',
+              label: 'Белок',
               data: protein,
-              borderColor: '#4caf50',
-              backgroundColor: 'rgba(76,175,80,0.1)',
+              borderColor: '#34d46a',
+              backgroundColor: 'rgba(52,212,106,0.08)',
               fill: true,
               tension: 0.3,
               pointRadius: 3,
-              pointBackgroundColor: protein.map(p => p < 140 ? '#f44336' : p < 160 ? '#ff9800' : '#4caf50'),
+              pointBackgroundColor: protein.map(p =>
+                p < 140 ? '#ff4d6d' : p < 160 ? '#ff8c42' : '#34d46a'
+              ),
             },
             {
               label: 'Минимум 160г',
-              data: minLine,
-              borderColor: '#f44336',
+              data: Array(filtered.length).fill(160),
+              borderColor: 'rgba(255,77,109,0.5)',
               borderWidth: 1.5,
               pointRadius: 0,
               borderDash: [4, 4],
             },
           ],
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
-          },
-          scales: {
-            x: { display: false },
-            y: {
-              grid: { color: 'rgba(0,0,0,0.05)' },
-              ticks: { callback: v => v + 'г' },
-              beginAtZero: false,
-            },
-          },
-        },
+        options: chartOptions(v => v + 'г', false),
       });
     }
 
-    // ─── Event listeners ────────────────────────────────────────────────────────
-    // Tabs
+    function chartOptions(tickCb, beginAtZero = true) {
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 400, easing: 'easeOutQuart' },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { boxWidth: 10, font: { size: 11 }, color: 'rgba(255,255,255,0.5)', padding: 12 },
+          },
+          tooltip: {
+            backgroundColor: 'rgba(20,20,35,0.9)',
+            borderColor: 'rgba(255,255,255,0.1)',
+            borderWidth: 1,
+            titleColor: 'rgba(255,255,255,0.9)',
+            bodyColor: 'rgba(255,255,255,0.6)',
+            padding: 10,
+            cornerRadius: 10,
+          },
+        },
+        scales: {
+          x: { display: false },
+          y: {
+            beginAtZero,
+            grid: { color: 'rgba(255,255,255,0.04)' },
+            ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 11 }, callback: tickCb },
+            border: { display: false },
+          },
+        },
+      };
+    }
+
+    // ─── Event listeners ─────────────────────────────────────────────────────────
     document.querySelectorAll('.tab').forEach(btn => {
       btn.addEventListener('click', () => {
+        tg.HapticFeedback.selectionChanged();
         document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-
-        const chartId = btn.dataset.chart;
+        const id = btn.dataset.chart;
         document.querySelectorAll('[id$="-chart"]').forEach(el => el.style.display = 'none');
-        document.getElementById(`${chartId}-chart`).style.display = 'block';
+        document.getElementById(`${id}-chart`).style.display = 'block';
       });
     });
 
-    // Period selectors
-    document.querySelectorAll('.period-selector').forEach(selector => {
-      selector.querySelectorAll('.period-btn').forEach(btn => {
+    document.querySelectorAll('.period-selector').forEach(sel => {
+      sel.querySelectorAll('.period-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-          selector.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+          tg.HapticFeedback.impactOccurred('light');
+          sel.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-
           const days = parseInt(btn.dataset.days);
-          const container = selector.closest('.chart-container');
-          const chartId = container.id.replace('-chart', '');
-
-          periodDays[chartId] = days;
-          if (chartId === 'weight') renderWeightChart(days);
-          if (chartId === 'calories') renderCaloriesChart(days);
-          if (chartId === 'protein') renderProteinChart(days);
+          const id = sel.closest('[id$="-chart"]').id.replace('-chart', '');
+          periodDays[id] = days;
+          if (id === 'weight')   renderWeightChart(days);
+          if (id === 'calories') renderCaloriesChart(days);
+          if (id === 'protein')  renderProteinChart(days);
         });
       });
     });
 
-    // ─── Init ───────────────────────────────────────────────────────────────────
+    // ─── Init ────────────────────────────────────────────────────────────────────
     loadData();
   </script>
 </body>
