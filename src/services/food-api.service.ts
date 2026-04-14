@@ -257,6 +257,132 @@ export async function cacheFood(userId: string, result: FoodNutrition): Promise<
   }
 }
 
+// ─── Multi-result search (for "найди X" intent) ───────────────────────────────
+
+export interface SearchFoodResult {
+  name: string;
+  kcalPer100g: number;
+  proteinPer100g: number;
+  fatPer100g: number;
+  carbsPer100g: number;
+  source: 'cache' | 'openfoodfacts' | 'ai';
+}
+
+async function searchCacheMultiple(userId: string, query: string): Promise<SearchFoodResult[]> {
+  const { data } = await supabase
+    .from('frequent_foods')
+    .select('food_name, calories, protein, fat, carbs')
+    .eq('user_id', userId)
+    .ilike('food_name', `%${query}%`)
+    .order('use_count', { ascending: false })
+    .limit(3);
+
+  return (data ?? [])
+    .filter((r) => r.calories > 0)
+    .map((r) => ({
+      name: r.food_name,
+      kcalPer100g: r.calories,
+      proteinPer100g: r.protein ?? 0,
+      fatPer100g: r.fat ?? 0,
+      carbsPer100g: r.carbs ?? 0,
+      source: 'cache' as const,
+    }));
+}
+
+async function searchOFF(query: string, site: 'world' | 'ru' = 'world'): Promise<SearchFoodResult[]> {
+  try {
+    const url =
+      `https://${site}.openfoodfacts.org/cgi/search.pl` +
+      `?search_terms=${encodeURIComponent(query)}` +
+      `&json=1&action=process&search_simple=1&page_size=6` +
+      `&fields=product_name,brands,nutriments`;
+
+    const res = await fetch(url, { signal: AbortSignal.timeout(6_000) });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as {
+      products: {
+        product_name?: string;
+        brands?: string;
+        nutriments?: {
+          'energy-kcal_100g'?: number;
+          proteins_100g?: number;
+          fat_100g?: number;
+          carbohydrates_100g?: number;
+        };
+      }[];
+    };
+
+    const results: SearchFoodResult[] = [];
+    for (const product of data.products ?? []) {
+      const n = product.nutriments;
+      const kcal = n?.['energy-kcal_100g'];
+      if (!kcal || kcal <= 0) continue;
+
+      const nameParts = [product.brands, product.product_name].filter(Boolean);
+      const name = nameParts.join(' ') || query;
+
+      results.push({
+        name,
+        kcalPer100g: Math.round(kcal),
+        proteinPer100g: Math.round((n?.proteins_100g ?? 0) * 10) / 10,
+        fatPer100g: Math.round((n?.fat_100g ?? 0) * 10) / 10,
+        carbsPer100g: Math.round((n?.carbohydrates_100g ?? 0) * 10) / 10,
+        source: 'openfoodfacts',
+      });
+
+      if (results.length >= 3) break;
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Searches for food by query across multiple sources.
+ * Returns up to 5 deduplicated results (cache → OFF world → OFF russia → AI).
+ */
+export async function searchFoodByQuery(
+  query: string,
+  userId: string,
+): Promise<SearchFoodResult[]> {
+  const [fromCache, fromWorld, fromRu] = await Promise.all([
+    searchCacheMultiple(userId, query),
+    searchOFF(query, 'world'),
+    searchOFF(query, 'ru'),
+  ]);
+
+  const combined: SearchFoodResult[] = [...fromCache];
+
+  // Merge OFF results, skip near-duplicates (same kcal ±8)
+  for (const r of [...fromWorld, ...fromRu]) {
+    const isDupe = combined.some((e) => Math.abs(e.kcalPer100g - r.kcalPer100g) <= 8);
+    if (!isDupe) combined.push(r);
+    if (combined.length >= 5) break;
+  }
+
+  // Pad with AI estimate if fewer than 2 results found
+  if (combined.length < 2) {
+    const aiResult = await estimateWithAI(query);
+    if (aiResult) {
+      const isDupe = combined.some((e) => Math.abs(e.kcalPer100g - aiResult.kcalPer100g) <= 8);
+      if (!isDupe) {
+        combined.push({
+          name: aiResult.name,
+          kcalPer100g: aiResult.kcalPer100g,
+          proteinPer100g: aiResult.proteinPer100g,
+          fatPer100g: aiResult.fatPer100g,
+          carbsPer100g: aiResult.carbsPer100g,
+          source: 'ai',
+        });
+      }
+    }
+  }
+
+  return combined.slice(0, 5);
+}
+
 // ─── Formatting ───────────────────────────────────────────────────────────────
 
 const SOURCE_LABEL: Record<FoodNutrition['source'], string> = {
