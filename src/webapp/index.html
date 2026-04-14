@@ -6,18 +6,39 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="googlebot" content="noindex, nofollow">
   <title>Фитнес Прогресс</title>
+  <style>
+    #guard-msg {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #1a1a1a;
+      color: #fff;
+      text-align: center;
+      padding-top: 40vh;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    #guard-msg h1 { font-size: 20px; margin: 0 0 12px; }
+    #guard-msg p { font-size: 14px; color: #888; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // ─── Telegram WebApp guard ──────────────────────────────────────────────────
-    if (!window.Telegram?.WebApp?.initData) {
-      document.body.innerHTML =
-        '<div style="display:flex;align-items:center;justify-content:center;' +
-        'min-height:100vh;background:#1a1a1a;color:#fff;text-align:center;padding:20px">' +
-        '<div><h1 style="font-size:20px;margin-bottom:12px">404 Not Found</h1>' +
-        '<p style="font-size:14px;color:#888">This page is not accessible via browser.</p></div></div>';
-      throw new Error('Blocked: not inside Telegram WebApp');
-    }
+    (function() {
+      // Check after DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', checkGuard);
+      } else {
+        checkGuard();
+      }
+      function checkGuard() {
+        if (!window.Telegram?.WebApp?.initData) {
+          document.getElementById('guard-msg').style.display = 'block';
+          document.getElementById('app').style.display = 'none';
+          throw new Error('Blocked: not inside Telegram WebApp');
+        }
+      }
+    })();
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
   <style>
@@ -154,6 +175,7 @@
     <h1>📈 Прогресс</h1>
   </div>
 
+  <div id="guard-msg"><h1>404 Not Found</h1><p>This page is not accessible via browser.</p></div>
   <div id="loading" class="loading">Загрузка данных...</div>
   <div id="error" class="error" style="display: none;"></div>
 
