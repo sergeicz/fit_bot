@@ -209,7 +209,7 @@
     const GATEWAY = '__WEBAPP_GATEWAY__';
     let SUPABASE_URL = '';
     let SUPABASE_ANON_KEY = '';
-    let supabase = null;
+    let db = null; // renamed to avoid conflict with Supabase CDN global 'supabase'
 
     async function initSupabase() {
       const initData = tg.initData;
@@ -231,7 +231,7 @@
       const config = await res.json();
       SUPABASE_URL = config.supabaseUrl;
       SUPABASE_ANON_KEY = config.supabaseAnonKey;
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     }
 
     // ─── State ──────────────────────────────────────────────────────────────────
@@ -258,7 +258,7 @@
 
         await initSupabase();
 
-        const { data: users } = await supabase
+        const { data: users } = await db
           .from('users')
           .select('*')
           .eq('tg_id', initUser.id)
