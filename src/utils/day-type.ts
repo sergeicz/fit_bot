@@ -30,15 +30,45 @@ export function getDayTypeLabel(dayType: DayType): string {
 
 // ─── Calories ─────────────────────────────────────────────────────────────────
 
+interface CycleCalories {
+  workout: number;
+  rest: number;
+  light: number;
+}
+
+/**
+ * Target calories by cycle.
+ * Gradually decreasing to prevent full metabolic adaptation.
+ *
+ * Cycle 1 (weeks  1–4):  1850 / 1650 / 1750
+ * Cycle 2 (weeks  5–8):  1800 / 1600 / 1700
+ * Cycle 3 (weeks  9–12): 1750 / 1550 / 1650
+ * Diet Break (week 13):  2300 all days
+ * Cycle 4 (weeks 14–17): 1800 / 1600 / 1700
+ * Cycle 5 (weeks 18–21): 1750 / 1600 / 1700
+ * Cycle 6 (weeks 22–24): 1700 / 1550 / 1600
+ */
+const CYCLE_CALORIES: Record<number, CycleCalories> = {
+  1: { workout: 1850, rest: 1650, light: 1750 },
+  2: { workout: 1800, rest: 1600, light: 1700 },
+  3: { workout: 1750, rest: 1550, light: 1650 },
+  4: { workout: 1800, rest: 1600, light: 1700 },
+  5: { workout: 1750, rest: 1600, light: 1700 },
+  6: { workout: 1700, rest: 1550, light: 1600 },
+};
+
 export function getTargetCalories(dayType: DayType, weekNumber: number): number {
-  if (weekNumber === 13) return 2300; // Diet Break midpoint (2200–2400)
+  const { cycleNumber, isDietBreak } = getCycleInfo(weekNumber);
+  if (isDietBreak) return 2300;
+
+  const calories = CYCLE_CALORIES[cycleNumber] ?? CYCLE_CALORIES[6];
   switch (dayType) {
     case 'workout':
-      return 1900;
+      return calories.workout;
     case 'rest':
-      return 1600;
+      return calories.rest;
     case 'light':
-      return 1700;
+      return calories.light;
   }
 }
 
