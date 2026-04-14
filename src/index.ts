@@ -3,7 +3,6 @@ import cron from 'node-cron';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';
 import { bot } from './bot';
 import {
   sendDaySummary20,
@@ -88,45 +87,7 @@ const PORT = process.env.PORT || 3000;
 const webappDir = path.join(__dirname, 'webapp');
 
 /**
- * Validates Telegram WebApp initData by checking HMAC-SHA256 signature.
- * Returns true only if the request came from a legitimate Telegram WebApp.
- */
-function isValidTelegramInitData(initData: string): boolean {
-  const botToken = process.env.BOT_TOKEN;
-  if (!botToken || !initData) return false;
-
-  const params = new URLSearchParams(initData);
-  const hash = params.get('hash');
-  if (!hash) return false;
-
-  params.delete('hash');
-  const sortedParams = Array.from(params.entries()).sort(([a], [b]) => a.localeCompare(b));
-  const dataCheckString = sortedParams.map(([key, value]) => `${key}=${value}`).join('\n');
-
-  const secretKey = crypto
-    .createHmac('sha256', 'WebAppData')
-    .update(botToken)
-    .digest();
-
-  const computedHash = crypto
-    .createHmac('sha256', secretKey)
-    .update(dataCheckString)
-    .digest('hex');
-
-  const valid = computedHash === hash;
-  if (!valid) {
-    console.warn('[WebApp] HMAC validation failed.');
-    console.warn('[WebApp]   Computed:', computedHash);
-    console.warn('[WebApp]   Expected:', hash);
-    console.warn('[WebApp]   Token:', botToken?.substring(0, 10) + '...');
-    console.warn('[WebApp]   Data string:', dataCheckString.substring(0, 200));
-  }
-  return valid;
-}
-
-/**
- * Extracts user info from initData without full HMAC validation.
- * Used as fallback for debugging. Returns null if initData is malformed.
+ * Parses Telegram WebApp initData to extract user info.
  */
 function parseInitDataUser(initData: string): { id: number; username?: string } | null {
   try {
@@ -139,6 +100,17 @@ function parseInitDataUser(initData: string): { id: number; username?: string } 
   }
 }
 
+/**
+ * Checks if the given tg_id is allowed to access the WebApp.
+ * Allowed IDs are listed in WEBAPP_ALLOWED_TG_IDS env var (comma-separated).
+ */
+function isAllowedUser(tgId: number): boolean {
+  const allowedStr = process.env.WEBAPP_ALLOWED_TG_IDS?.trim();
+  if (!allowedStr) return false;
+  const allowed = allowedStr.split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n));
+  return allowed.includes(tgId);
+}
+
 // Block search engine indexing
 app.use((_req, res, next) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet');
@@ -148,7 +120,7 @@ app.use((_req, res, next) => {
 // Serve static files (CSS, JS, images — but NOT HTML)
 app.use(express.static(webappDir));
 
-// POST /api/verify — validate Telegram initData, return Supabase config
+// POST /api/verify — validate WebApp access, return Supabase config
 app.post('/api/verify', async (req, res) => {
   const { initData } = req.body;
 
@@ -156,22 +128,17 @@ app.post('/api/verify', async (req, res) => {
     return res.status(403).send('🔒 Доступ ограничен.');
   }
 
-  // Try HMAC validation first
-  if (isValidTelegramInitData(initData)) {
-    return res.json({
-      supabaseUrl: process.env.SUPABASE_URL,
-      supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
-    });
-  }
-
-  // Fallback: check if user exists in DB
-  const userData = parseInitDataUser(initData);
-  if (!userData?.id) {
-    console.warn('[WebApp] No valid user in initData');
+  const user = parseInitDataUser(initData);
+  if (!user?.id) {
     return res.status(403).send('🔒 Доступ ограничен.');
   }
 
-  console.log(`[WebApp] HMAC failed but user exists: tg_id=${userData.id}`);
+  if (!isAllowedUser(user.id)) {
+    console.log(`[WebApp] Denied: tg_id=${user.id} not in allowed list`);
+    return res.status(403).send('🔒 Доступ ограничен.');
+  }
+
+  console.log(`[WebApp] Allowed: tg_id=${user.id} (${user.username || 'no username'})`);
   return res.json({
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
