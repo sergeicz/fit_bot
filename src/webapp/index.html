@@ -292,7 +292,7 @@
     }
 
     async function fetchWeight() {
-      const { data } = await supabase
+      const { data } = await db
         .from('weights')
         .select('*')
         .eq('user_id', userId)
@@ -301,7 +301,7 @@
     }
 
     async function fetchSummary() {
-      const { data } = await supabase
+      const { data } = await db
         .from('daily_summary')
         .select('*')
         .eq('user_id', userId)
@@ -311,7 +311,7 @@
 
     async function fetchLatestCompliance() {
       const today = new Date().toISOString().split('T')[0];
-      const { data } = await supabase
+      const { data } = await db
         .from('data_compliance')
         .select('*')
         .eq('user_id', userId)
