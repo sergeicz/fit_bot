@@ -63,8 +63,26 @@ cron.schedule('0 20 * * *', () => {
 // ─── Start bot ────────────────────────────────────────────────────────────────
 console.log('Starting fitness bot...');
 
-bot.start({
-  onStart: (botInfo) => {
-    console.log(`Bot @${botInfo.username} is running`);
-  },
-});
+async function startBot(attempt = 1): Promise<void> {
+  try {
+    await bot.start({
+      drop_pending_updates: true,
+      onStart: (botInfo) => {
+        console.log(`Bot @${botInfo.username} is running`);
+      },
+    });
+  } catch (err: unknown) {
+    // 409 = another instance still running (happens during Railway deploys)
+    const is409 =
+      err instanceof Error && err.message.includes('409');
+    if (is409 && attempt <= 5) {
+      const delay = attempt * 3000;
+      console.warn(`[Bot] 409 conflict, retrying in ${delay / 1000}s (attempt ${attempt}/5)...`);
+      await new Promise((r) => setTimeout(r, delay));
+      return startBot(attempt + 1);
+    }
+    throw err;
+  }
+}
+
+startBot();
