@@ -1,13 +1,13 @@
-import type { BotContext } from '../types';
-import { mainKeyboard } from '../keyboards/main';
 import {
+  formatDateRu,
+  getCycleInfo,
   getDayType,
   getDayTypeLabel,
   getTargetCalories,
   getWeekNumber,
-  getCycleInfo,
-  formatDateRu,
 } from '../../utils/day-type';
+import { mainKeyboard } from '../keyboards/main';
+import type { BotContext } from '../types';
 
 export async function startCommand(ctx: BotContext): Promise<void> {
   const now = new Date();

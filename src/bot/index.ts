@@ -2,6 +2,8 @@ import { Bot, session } from 'grammy';
 import {
   dailySummaryHandler,
   foodCommand,
+  foodConfirmHandler,
+  foodManualEntryHandler,
   foodMenuHandler,
   skipMealHandler,
 } from './commands/food';
@@ -42,6 +44,8 @@ bot.callbackQuery('action:main_menu', async (ctx) => {
 });
 bot.callbackQuery('action:food_menu', foodMenuHandler);
 bot.callbackQuery('action:daily_summary', dailySummaryHandler);
+bot.callbackQuery('food:confirm', foodConfirmHandler);
+bot.callbackQuery('food:manual_entry', foodManualEntryHandler);
 bot.callbackQuery('food:skip_meal1', (ctx) => skipMealHandler(ctx, 1));
 bot.callbackQuery('food:skip_meal2', (ctx) => skipMealHandler(ctx, 2));
 bot.callbackQuery('food:skip_meal3', (ctx) => skipMealHandler(ctx, 3));

@@ -2,12 +2,12 @@ import { InlineKeyboard } from 'grammy';
 import { bot } from '../bot';
 import { supabase } from '../db/client';
 import {
+  formatDateRu,
+  getCycleInfo,
   getDayType,
   getDayTypeLabel,
   getTargetCalories,
   getWeekNumber,
-  getCycleInfo,
-  formatDateRu,
   todayString,
 } from '../utils/day-type';
 
@@ -107,16 +107,14 @@ export async function sendMorningRepeat(): Promise<void> {
         { reply_markup: keyboard },
       );
 
-      await supabase
-        .from('data_compliance')
-        .upsert(
-          {
-            user_id: user.id,
-            date: today,
-            reminders_sent: (compliance?.reminders_sent ?? 0) + 1,
-          },
-          { onConflict: 'user_id,date' },
-        );
+      await supabase.from('data_compliance').upsert(
+        {
+          user_id: user.id,
+          date: today,
+          reminders_sent: (compliance?.reminders_sent ?? 0) + 1,
+        },
+        { onConflict: 'user_id,date' },
+      );
     } catch (err) {
       console.error(`Failed to send 09:30 reminder to ${user.tg_id}:`, err);
     }

@@ -59,47 +59,76 @@ WEBAPP_URL=
 - Morning cron: 08:00 / 09:30 / 11:00 weight reminders (node-cron, in-process)
 - All DB tables created via `migrations/001_initial.sql`
 
-**Not yet implemented**: food logging, food APIs, workouts, adaptation, AI, WebApp.
+**Stage 2 complete** (food logging + full cron schedule):
+- `/food` command + `🍽️ Питание` inline button — 2-step manual entry: parse text → ask for kcal + protein
+- `food.service.ts` — saves to `food_logs`, marks meal slot in `data_compliance`, recomputes `daily_summary`
+- Day summary: status (ОТЛИЧНЫЙ / НОРМА / ПЕРЕБОР / НЕДОЕЛ / МАЛО БЕЛКА), shown after each entry and at 20:00
+- Skip meal callbacks (`food:skip_meal1/2/3`) — mark slot as skipped, stop reminders
+- Full meals cron in `src/cron/meals.ts`: 13:00 / 14:00 / 16:30 / 17:30 / 19:30 / 20:00
+- Session in-memory (grammY built-in) — **no persistence across restarts**
+
+**Stage 3 complete** (AI auto-analysis — no button):
+- `ai.service.ts` — Groq (Llama 3.3 70B) primary → OpenRouter (DeepSeek) fallback
+- `getAICommentary({ trigger, userId, ... })` — единственный публичный метод AI
+- 4 триггера: `weight` (после веса), `food` (после приёма пищи), `eod` (20:00 итог), `question` (свободный текст)
+- AI строит контекст из БД: сегодня / тренд 7–14 дней / последние 7 дней / общий прогресс
+- Ответ (2–4 предложения) добавляется курсивом `🤖 _..._ ` к основному сообщению
+- Если AI упал — молча скипается, основной response не ломается
+- `input-detector.ts` fallback (шаг 4): любой текст не распознанный как вес/еда → AI отвечает как тренер
+
+**Not yet implemented**: food APIs (Open Food Facts / USDA), workouts, adaptation, WebApp.
 
 ## Key Patterns
 
 **`BotContext`** (`src/bot/types.ts`): all handlers receive `ctx.dbUser: DbUser` injected by `authMiddleware`. Never access the DB directly in commands — use services.
 
-**Session state machine** (`ctx.session.step`): multi-step flows (weight confirm, food confirm) use the `step` field. `inputDetector` runs first, checks `step`, routes accordingly. Reset `step` to `null` when flow completes.
+**Session state machine** (`ctx.session.step`): multi-step flows use the `step` field. Known steps: `awaiting_weight`, `awaiting_weight_not_fasted`, `awaiting_food_text`, `awaiting_food_nutrition`, `awaiting_food_grams`, `awaiting_food_confirm`, `awaiting_steps`. `inputDetector` runs first, checks `step`, routes accordingly. Reset `step` to `null` when flow completes.
 
 **Cron**: uses `node-cron` in-process (not Railway native cron). Requires `TZ=Europe/Moscow` env var on Railway for Moscow-time expressions to work.
 
 **Services pattern**: `src/services/*.service.ts` own all DB queries for their domain. Commands import services, never `supabase` directly.
 
-## Planned Project Structure
+**`day-type.ts` utilities**: `getMealSlot(date)` maps time to `'11:00'|'15:00'|'18:30'|null` (slots are 10:30–14:00 / 14:00–17:00 / 17:00–20:00). `isEatingWindow(date)` checks 11:00–19:00. `todayString()` uses machine local time — ensure `TZ=Europe/Moscow` on Railway. `getCycleWeightCorridor(cycleNumber)` returns expected weight range string per cycle.
+
+## Current Project Structure
+
+Built files (✅) vs planned (🔲):
 
 ```
 src/
 ├── bot/
-│   ├── index.ts              # grammY entry point
-│   ├── commands/             # start, weight, food, workout, steps, summary, progress, ask
-│   ├── keyboards/            # main, food, workout, confirm
-│   └── middlewares/          # auth, session
+│   ├── index.ts              ✅ grammY entry point, all route registrations
+│   ├── commands/
+│   │   ├── start.ts          ✅ /start, /menu — shows day info + main keyboard
+│   │   ├── weight.ts         ✅ weight logging flow (fasted/non-fasted)
+│   │   └── food.ts           ✅ food logging (2-step manual: parse text → kcal+protein)
+│   ├── keyboards/
+│   │   └── main.ts           ✅ main keyboard + backToMenuKeyboard
+│   └── middlewares/
+│       ├── auth.ts           ✅ upserts user, attaches ctx.dbUser
+│       └── input-detector.ts ✅ routes free text by step or auto-detect
 ├── services/
-│   ├── cycle.service.ts      # 6-cycle logic and diet break detection
-│   ├── adaptation.service.ts # detects weight plateau + 2+ adaptation signals
-│   ├── ai.service.ts         # Groq primary, OpenRouter fallback
-│   ├── memory.service.ts     # RAG via pgvector
-│   └── food-api.service.ts   # Open Food Facts + USDA search + caching
+│   ├── user.service.ts       ✅ getOrCreate user
+│   ├── weight.service.ts     ✅ saveWeight, getWeightHistory, getWeightTrend, buildWeightConfirmText
+│   ├── food.service.ts       ✅ saveFood, recomputeDailySummary, getDailySummary, markMealSkipped, buildDaySummaryText
+│   ├── ai.service.ts         ✅ getAICommentary (Groq→OpenRouter), buildContextText, 4 triggers
+│   ├── cycle.service.ts      🔲 6-cycle logic and diet break detection
+│   ├── adaptation.service.ts 🔲 detects weight plateau + 2+ adaptation signals
+│   ├── ai.service.ts         🔲 Groq primary, OpenRouter fallback
+│   ├── memory.service.ts     🔲 RAG via pgvector
+│   └── food-api.service.ts   🔲 Open Food Facts + USDA search + caching
 ├── db/
-│   ├── client.ts             # Supabase client
-│   └── types.ts              # DB TypeScript types
+│   ├── client.ts             ✅ Supabase client
+│   └── types.ts              ✅ DB TypeScript types
 ├── cron/
-│   ├── morning.ts            # 08:00, 09:30, 11:00, 13:00 — weight reminders
-│   ├── meals.ts              # 13:00, 14:00, 16:30, 17:30, 19:30, 20:00 — meal reminders
-│   └── weekly.ts             # Sunday 20:00 — measurements + weekly report
-├── webapp/
-│   ├── index.html            # Telegram Mini App
-│   └── charts.js             # Chart.js progress charts (weight, calories, protein, measurements)
+│   ├── morning.ts            ✅ 08:00 (sendMorningReminder), 09:30 (sendMorningRepeat), 11:00 (sendMorningHard)
+│   ├── meals.ts              ✅ 13:00 / 14:00 / 16:30 / 17:30 / 19:30 / 20:00
+│   └── weekly.ts             🔲 Sunday 20:00 — measurements + weekly report
+├── webapp/                   🔲 Telegram Mini App + Chart.js
 └── utils/
-    ├── parser.ts             # parse "курица 200г рис 100г" free text
-    ├── calculator.ts         # TDEE, deficit, weekly fat loss estimate, weight trend
-    └── day-type.ts           # determine day type (workout/rest/light) and calorie target by date
+    ├── parser.ts             ✅ parse "курица 200г рис 100г" → [{name, grams}]
+    ├── day-type.ts           ✅ getDayType, getTargetCalories, getWeekNumber, getCycleInfo, getMealSlot, isEatingWindow, etc.
+    └── calculator.ts         🔲 TDEE, deficit, weekly fat loss estimate
 ```
 
 ## Free-Text Input (Always-On)
@@ -221,14 +250,18 @@ The most complex feature. Bot aggressively ensures data is entered every day.
 
 ## Food Parser (`parser.ts`)
 
-Parses free-text input like "курица 200г рис 100г":
+**Current (Stage 2) — manual nutrition entry:**
 1. Regex extracts `(product, grams)` pairs — handles г/гр/грамм, шт/штук
-2. Normalize product name (lowercase, strip extras)
-3. Fuzzy match against `frequent_foods` (≥80% → suggest immediately)
-4. → Open Food Facts API
-5. → USDA FoodData Central API
-6. → Groq AI estimation (marked "приблизительно")
-7. Show result with: `[✅ Подтвердить]` / `[✏️ Изменить граммы]` / `[❌ Другой продукт]`
+2. Shows parsed items preview to user
+3. Asks user to enter `kcal protein` manually (e.g. `580 75`)
+4. Saves to DB with `source: 'manual'`
+
+**Planned (Stage 3) — automatic via APIs:**
+1. Fuzzy match against `frequent_foods` (≥80% → suggest immediately)
+2. → Open Food Facts API (RU products)
+3. → USDA FoodData Central API (fallback)
+4. → Groq AI estimation (marked "приблизительно")
+5. Show result with: `[✅ Подтвердить]` / `[✏️ Изменить граммы]` / `[❌ Другой продукт]`
 
 ## AI Module (`ai.service.ts`)
 

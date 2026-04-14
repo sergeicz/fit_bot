@@ -1,4 +1,5 @@
 import type { NextFunction } from 'grammy';
+import { getAICommentary } from '../../services/ai.service';
 import { isEatingWindow } from '../../utils/day-type';
 import { foodNutritionHandler, foodTextHandler } from '../commands/food';
 import { handleWeightInput } from '../commands/weight';
@@ -73,6 +74,19 @@ export async function inputDetector(ctx: BotContext, next: NextFunction): Promis
     return;
   }
 
-  // 4. Fallback — pass to AI or next handler
-  await next();
+  // 4. Fallback — send to AI as a question
+  const { id: userId, start_date, goal_weight } = ctx.dbUser;
+  const aiReply = await getAICommentary({
+    trigger: 'question',
+    userId,
+    startDate: new Date(start_date),
+    goalWeight: goal_weight,
+    eventDetail: `Вопрос пользователя: "${text}"`,
+  });
+
+  if (aiReply) {
+    await ctx.reply(aiReply, { parse_mode: 'Markdown' });
+  } else {
+    await next();
+  }
 }

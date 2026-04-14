@@ -1,6 +1,7 @@
 import { InlineKeyboard } from 'grammy';
 import { bot } from '../bot';
 import { supabase } from '../db/client';
+import { getAICommentary } from '../services/ai.service';
 import { buildDaySummaryText, foodService } from '../services/food.service';
 import { getCycleInfo, getWeekNumber, todayString } from '../utils/day-type';
 
@@ -205,25 +206,36 @@ export async function sendMeal3Reminder1930(): Promise<void> {
 export async function sendDaySummary20(): Promise<void> {
   const today = todayString();
 
-  const { data: users } = await supabase.from('users').select('id, tg_id, start_date');
+  const { data: users } = await supabase
+    .from('users')
+    .select('id, tg_id, start_date, goal_weight');
   if (!users) return;
 
   for (const user of users) {
-    const { data: compliance } = await supabase
-      .from('data_compliance')
-      .select('meal3_logged, meal3_skipped')
-      .eq('user_id', user.id)
-      .eq('date', today)
-      .single();
-
     const startDate = new Date(user.start_date);
     const weekNumber = getWeekNumber(startDate, new Date());
     const { cycleNumber, isDietBreak } = getCycleInfo(weekNumber);
 
-    // Make sure summary is fresh
+    // Recompute summary + fetch compliance + call AI in parallel
     await foodService.recomputeDailySummary(user.id, today, startDate);
-    const summary = await foodService.getDailySummary(user.id, today);
 
+    const [summary, complianceRes, aiComment] = await Promise.all([
+      foodService.getDailySummary(user.id, today),
+      supabase
+        .from('data_compliance')
+        .select('meal3_logged, meal3_skipped')
+        .eq('user_id', user.id)
+        .eq('date', today)
+        .single(),
+      getAICommentary({
+        trigger: 'eod',
+        userId: user.id,
+        startDate,
+        goalWeight: user.goal_weight,
+      }),
+    ]);
+
+    const compliance = complianceRes.data;
     let text = '';
     const keyboard = new InlineKeyboard();
 
@@ -239,6 +251,10 @@ export async function sendDaySummary20(): Promise<void> {
     if (meal3Missing) {
       text += `\n\n🍽️ Приём 3 (18:30) не записан — добавь сейчас или отметь пропуск.`;
       keyboard.text('🍽️ Записать', 'action:food_menu').text('Пропустил', 'food:skip_meal3').row();
+    }
+
+    if (aiComment) {
+      text += `\n\n🤖 _${aiComment}_`;
     }
 
     keyboard.text('🏠 Меню', 'action:main_menu');

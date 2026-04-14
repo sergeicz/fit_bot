@@ -1,8 +1,9 @@
 import { InlineKeyboard } from 'grammy';
-import type { BotContext } from '../types';
-import { weightService, buildWeightConfirmText } from '../../services/weight.service';
-import { getWeekNumber, getCycleInfo, todayString } from '../../utils/day-type';
+import { getAICommentary } from '../../services/ai.service';
+import { buildWeightConfirmText, weightService } from '../../services/weight.service';
+import { getCycleInfo, getWeekNumber, todayString } from '../../utils/day-type';
 import { backToMenuKeyboard, weightActionsKeyboard } from '../keyboards/main';
+import type { BotContext } from '../types';
 
 // ─── Callback: user pressed "⚖️ Внести вес" button ───────────────────────────
 
@@ -10,19 +11,13 @@ export async function weightCallbackHandler(ctx: BotContext): Promise<void> {
   await ctx.answerCallbackQuery();
   ctx.session.step = 'awaiting_weight';
 
-  await ctx.reply(
-    '⚖️ Введи вес (натощак, до еды).\nПример: *95.4*',
-    { parse_mode: 'Markdown' },
-  );
+  await ctx.reply('⚖️ Введи вес (натощак, до еды).\nПример: *95.4*', { parse_mode: 'Markdown' });
 }
 
 // ─── Text handler: processes weight value ─────────────────────────────────────
 
 export async function weightTextHandler(ctx: BotContext): Promise<void> {
-  if (
-    ctx.session.step !== 'awaiting_weight' &&
-    ctx.session.step !== 'awaiting_weight_not_fasted'
-  ) {
+  if (ctx.session.step !== 'awaiting_weight' && ctx.session.step !== 'awaiting_weight_not_fasted') {
     return;
   }
 
@@ -35,13 +30,10 @@ export async function handleWeightInput(ctx: BotContext): Promise<void> {
   const text = ctx.message?.text?.trim().replace(',', '.');
   if (!text) return;
 
-  const weight = parseFloat(text);
+  const weight = Number.parseFloat(text);
 
   if (Number.isNaN(weight) || weight < 30 || weight > 300) {
-    await ctx.reply(
-      '❌ Не понял. Введи вес числом, например: *95.4*',
-      { parse_mode: 'Markdown' },
-    );
+    await ctx.reply('❌ Не понял. Введи вес числом, например: *95.4*', { parse_mode: 'Markdown' });
     return;
   }
 
@@ -50,16 +42,28 @@ export async function handleWeightInput(ctx: BotContext): Promise<void> {
 
   const today = todayString();
   const { id: userId, start_date, goal_weight } = ctx.dbUser;
+  const startDate = new Date(start_date);
 
+  // Save first so subsequent queries see the new weight
   await weightService.saveWeight({ userId, date: today, weight, isFasted });
 
-  const trend = await weightService.getWeightTrend(userId);
-  const startDate = new Date(start_date);
+  // Then fetch trend, history and AI commentary in parallel
+  const [trend, history, aiComment] = await Promise.all([
+    weightService.getWeightTrend(userId),
+    weightService.getWeightHistory(userId, 2),
+    getAICommentary({
+      trigger: 'weight',
+      userId,
+      startDate,
+      goalWeight: goal_weight,
+      eventDetail: `записал вес ${weight} кг${isFasted ? ' (натощак)' : ' (не натощак)'}`,
+    }),
+  ]);
+
   const weekNumber = getWeekNumber(startDate, new Date());
   const { cycleNumber, isDietBreak } = getCycleInfo(weekNumber);
 
   // Warn if weight went up during or after diet break (expected: water weight)
-  const history = await weightService.getWeightHistory(userId, 2);
   let extraNote = '';
   if (history.length === 2 && history[0].weight > history[1].weight) {
     const diff = (history[0].weight - history[1].weight).toFixed(1);
@@ -70,9 +74,19 @@ export async function handleWeightInput(ctx: BotContext): Promise<void> {
     }
   }
 
-  const confirmText =
-    buildWeightConfirmText({ weight, isFasted, trend, weekNumber, cycleNumber, isDietBreak, goalWeight: goal_weight }) +
-    extraNote;
+  let confirmText = buildWeightConfirmText({
+    weight,
+    isFasted,
+    trend,
+    weekNumber,
+    cycleNumber,
+    isDietBreak,
+    goalWeight: goal_weight,
+  }) + extraNote;
+
+  if (aiComment) {
+    confirmText += `\n\n🤖 _${aiComment}_`;
+  }
 
   await ctx.reply(confirmText, {
     parse_mode: 'Markdown',

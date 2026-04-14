@@ -12,11 +12,7 @@ export const userService = {
     const { tg_id, username } = params;
 
     // Try to fetch existing user
-    const { data: existing } = await supabase
-      .from('users')
-      .select('*')
-      .eq('tg_id', tg_id)
-      .single();
+    const { data: existing } = await supabase.from('users').select('*').eq('tg_id', tg_id).single();
 
     if (existing) {
       // Keep username in sync

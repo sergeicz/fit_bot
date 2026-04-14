@@ -1,6 +1,12 @@
 import { supabase } from '../db/client';
-import type { DbWeight, DayStatus } from '../db/types';
-import { getDayType, getTargetCalories, getWeekNumber, getCycleInfo, todayString } from '../utils/day-type';
+import type { DayStatus, DbWeight } from '../db/types';
+import {
+  getCycleInfo,
+  getDayType,
+  getTargetCalories,
+  getWeekNumber,
+  todayString,
+} from '../utils/day-type';
 
 interface SaveWeightParams {
   userId: string;
@@ -14,24 +20,24 @@ export const weightService = {
   async saveWeight(params: SaveWeightParams): Promise<void> {
     const { userId, date, weight, isFasted } = params;
 
-    await supabase.from('weights').upsert(
-      { user_id: userId, date, weight, is_fasted: isFasted },
-      { onConflict: 'user_id,date' },
-    );
-
-    // Update daily_summary.weight
     await supabase
-      .from('daily_summary')
+      .from('weights')
       .upsert(
-        {
-          user_id: userId,
-          date,
-          weight,
-          day_type: getDayType(new Date(date)),
-          target_calories: getTargetCalories(getDayType(new Date(date)), 1),
-        },
+        { user_id: userId, date, weight, is_fasted: isFasted },
         { onConflict: 'user_id,date' },
       );
+
+    // Update daily_summary.weight
+    await supabase.from('daily_summary').upsert(
+      {
+        user_id: userId,
+        date,
+        weight,
+        day_type: getDayType(new Date(date)),
+        target_calories: getTargetCalories(getDayType(new Date(date)), 1),
+      },
+      { onConflict: 'user_id,date' },
+    );
 
     // Mark weight as logged in compliance table
     await supabase
@@ -115,11 +121,7 @@ export const weightService = {
       status = 'ok';
     }
 
-    await supabase
-      .from('daily_summary')
-      .update({ status })
-      .eq('user_id', userId)
-      .eq('date', date);
+    await supabase.from('daily_summary').update({ status }).eq('user_id', userId).eq('date', date);
   },
 };
 
