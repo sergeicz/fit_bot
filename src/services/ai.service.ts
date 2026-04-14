@@ -11,6 +11,7 @@ import {
   todayString,
 } from '../utils/day-type';
 import { statusLabel } from './food.service';
+import { findRelevantChunks } from './knowledge.service';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -279,7 +280,7 @@ export async function getAICommentary(params: {
   const { trigger, userId, startDate, goalWeight, eventDetail } = params;
 
   try {
-    const [contextText] = await Promise.all([buildContextText(userId, startDate, goalWeight)]);
+    const contextText = await buildContextText(userId, startDate, goalWeight);
 
     let userMessage: string;
     switch (trigger) {
@@ -310,7 +311,15 @@ export async function getAICommentary(params: {
         break;
     }
 
-    const response = await callAI(contextText, userMessage);
+    // Find relevant knowledge base chunks for this query
+    const knowledgeQuery = `${trigger} ${eventDetail ?? ''} ${userMessage}`;
+    const knowledgeContext = findRelevantChunks(knowledgeQuery, 3);
+
+    const fullContext = knowledgeContext
+      ? `${contextText}\n\n${knowledgeContext}`
+      : contextText;
+
+    const response = await callAI(fullContext, userMessage);
     return response || null;
   } catch (err) {
     console.error('[AI] getAICommentary failed:', err);

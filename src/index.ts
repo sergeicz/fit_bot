@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import cron from 'node-cron';
 import { bot } from './bot';
+import { loadKnowledgeBase } from './services/knowledge.service';
 import {
   sendDaySummary20,
   sendMeal1Repeat14,
@@ -59,6 +60,9 @@ cron.schedule('30 19 * * *', () => {
 cron.schedule('0 20 * * *', () => {
   sendDaySummary20().catch(console.error);
 });
+
+// ─── Load knowledge base ──────────────────────────────────────────────────────
+loadKnowledgeBase().catch(console.error);
 
 // ─── Start bot ────────────────────────────────────────────────────────────────
 console.log('Starting fitness bot...');
