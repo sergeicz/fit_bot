@@ -267,11 +267,25 @@ export async function recipeIngredientsHandler(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const items = parseFoodText(text);
+  // Parse line by line to avoid cross-line merging when grams are missing
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const items = lines.flatMap((line) => parseFoodText(line));
+  const unparsedLines = lines.filter((line) => parseFoodText(line).length === 0);
 
   if (items.length === 0) {
     await ctx.reply(
-      '❌ Не понял. Введи продукты и граммы, например:\n_куриная грудка 400г, рис 200г_',
+      '❌ Не понял — не нашёл ни одного продукта с граммами.\n\n' +
+        'Каждая строка должна содержать название и граммы:\n' +
+        '_куриная грудка 400г_\n_рис 200г_\n_масло 10г_',
+      { parse_mode: 'Markdown', reply_markup: cancelKeyboard() },
+    );
+    return;
+  }
+
+  if (unparsedLines.length > 0) {
+    const list = unparsedLines.map((l) => `• ${l}`).join('\n');
+    await ctx.reply(
+      `⚠️ Не указаны граммы для:\n${list}\n\nДобавь количество к каждому продукту, например:\n_${unparsedLines[0]} 150г_`,
       { parse_mode: 'Markdown', reply_markup: cancelKeyboard() },
     );
     return;
@@ -353,10 +367,12 @@ export async function recipeIngredientsHandler(ctx: BotContext): Promise<void> {
       reply_markup: recipeDetailKeyboard(recipe.id),
     });
   } catch (err) {
-    console.error('[Recipe] Failed to save:', err);
-    await ctx.reply('❌ Не удалось сохранить рецепт. Попробуй ещё раз.', {
-      reply_markup: cancelKeyboard(),
-    });
+    const detail = err instanceof Error ? err.message : JSON.stringify(err);
+    console.error('[Recipe] Failed to save:', detail);
+    await ctx.reply(
+      `❌ Не удалось сохранить рецепт.\n\`${detail.slice(0, 120)}\`\n\nПопробуй ещё раз.`,
+      { parse_mode: 'Markdown', reply_markup: cancelKeyboard() },
+    );
   }
 }
 
