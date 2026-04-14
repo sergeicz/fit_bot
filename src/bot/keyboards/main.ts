@@ -1,6 +1,6 @@
 import { InlineKeyboard } from 'grammy';
 
-const WEBAPP_URL = process.env.WEBAPP_URL || 'https://fit.pushkarev.online';
+const WEBAPP_URL = (process.env.WEBAPP_URL || 'https://fit.pushkarev.online').replace(/\/$/, '');
 
 export function mainKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
@@ -13,7 +13,7 @@ export function mainKeyboard(): InlineKeyboard {
     .text('🚶 Шаги', 'action:log_steps')
     .text('📖 Рецепты', 'action:recipes_menu')
     .row()
-    .webApp('📈 Прогресс', WEBAPP_URL);
+    .webApp('📈 Прогресс', `${WEBAPP_URL}/app`);
 }
 
 export function backToMenuKeyboard(): InlineKeyboard {

@@ -117,25 +117,28 @@ app.use((_req, res, next) => {
   next();
 });
 
-// Serve static files (CSS, JS, images — but NOT HTML directly, so GET / goes through template substitution)
-app.use(express.static(webappDir, { index: false }));
+// Serve static assets (CSS, JS, images) only under /app/* — no directory listing, no index.html
+app.use('/app', express.static(webappDir, { index: false }));
 
-// POST /api/verify — validate WebApp access, return Supabase config
+// All other paths → 404 (browser access blocked)
+app.get('/', (_req, res) => res.status(404).send('Not Found'));
+
+// POST /api/verify — validate Telegram initData, return Supabase config
 app.post('/api/verify', async (req, res) => {
   const { initData } = req.body;
 
   if (!initData) {
-    return res.status(403).send('🔒 Доступ ограничен.');
+    return res.status(403).send('Forbidden');
   }
 
   const user = parseInitDataUser(initData);
   if (!user?.id) {
-    return res.status(403).send('🔒 Доступ ограничен.');
+    return res.status(403).send('Forbidden');
   }
 
   if (!isAllowedUser(user.id)) {
     console.log(`[WebApp] Denied: tg_id=${user.id} not in allowed list`);
-    return res.status(403).send('🔒 Доступ ограничен.');
+    return res.status(403).send('Forbidden');
   }
 
   console.log(`[WebApp] Allowed: tg_id=${user.id} (${user.username || 'no username'})`);
@@ -145,21 +148,23 @@ app.post('/api/verify', async (req, res) => {
   });
 });
 
-// Serve index.html — client-side JS handles Telegram validation
-app.get('/', (_req, res) => {
+// GET /app — serve Mini App HTML with gateway URL substituted
+app.get('/app', (_req, res) => {
   const htmlPath = path.join(webappDir, 'index.html');
   if (!fs.existsSync(htmlPath)) {
-    return res.status(404).send('WebApp not built. Run `npm run build` first.');
+    return res.status(404).send('Not Found');
   }
 
   let html = fs.readFileSync(htmlPath, 'utf-8');
-
   const gateway = (process.env.WEBAPP_URL || 'https://fit.pushkarev.online').replace(/\/$/, '');
   html = html.replace('__WEBAPP_GATEWAY__', gateway);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
 });
+
+// Everything else → 404
+app.use((_req, res) => res.status(404).send('Not Found'));
 
 app.listen(PORT, () => {
   console.log(`WebApp serving on http://localhost:${PORT}`);
