@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>;
+const pdfParseModule = require('pdf-parse');
+const pdfParse = (pdfParseModule.default || pdfParseModule) as (buf: Buffer) => Promise<{ text: string }>;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
