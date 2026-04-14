@@ -1,8 +1,8 @@
 /** Standalone unit tokens that may appear separately after a number */
 const UNIT_ONLY_RE = /^(?:г(?:р(?:амм?)?)?|шт(?:ук)?|мл|g|ml)$/i;
 
-/** Number with an optional attached unit: "200г", "150гр", "1шт", "300" */
-const QUANTITY_RE = /^(\d+(?:[.,]\d+)?)(?:г(?:р(?:амм?)?)?|шт(?:ук)?|мл|g|ml)?$/i;
+/** Number with an optional attached unit or any trailing letters: "200г", "150гр", "6таблеток", "2шт", "300" */
+const QUANTITY_RE = /^(\d+(?:[.,]\d+)?)[а-яёa-zA-Z]*$/;
 
 export interface ParsedFoodItem {
   name: string;
