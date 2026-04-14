@@ -6,25 +6,6 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="googlebot" content="noindex, nofollow">
   <title>Фитнес Прогресс</title>
-  <script>
-    // ─── Telegram WebApp guard ──────────────────────────────────────────────────
-    // Block access if not opened inside Telegram
-    if (!window.Telegram?.WebApp?.initData) {
-      document.open();
-      document.write(
-        '<html><head><meta charset="UTF-8"><meta name="robots" content="noindex, nofollow">' +
-        '<meta name="googlebot" content="noindex, nofollow">' +
-        '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,' +
-        'BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;' +
-        'min-height:100vh;background:#1a1a1a;color:#fff;text-align:center;padding:20px}' +
-        'h1{font-size:20px;margin-bottom:12px}p{font-size:14px;color:#888;max-width:300px}' +
-        '</style></head><body><h1>🔒 Доступ ограничен</h1>' +
-        '<p>Откройте эту страницу через Telegram Mini App.</p></body></html>'
-      );
-      document.close();
-      throw new Error('Blocked: not inside Telegram WebApp');
-    }
-  </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
@@ -219,14 +200,28 @@
     let supabase = null;
 
     async function initSupabase() {
+      // Wait for initData to be available (can take a moment in some Telegram clients)
+      let initData = tg.initData;
+      let retries = 0;
+      while (!initData && retries < 10) {
+        await new Promise(r => setTimeout(r, 200));
+        initData = tg.initData;
+        retries++;
+      }
+
+      if (!initData) {
+        throw new Error('Telegram Mini App: initData не доступен');
+      }
+
       const res = await fetch(`${GATEWAY}/api/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg.initData }),
+        body: JSON.stringify({ initData }),
       });
 
       if (!res.ok) {
-        throw new Error('Server rejected initData');
+        const text = await res.text();
+        throw new Error(text || 'Сервер отклонил доступ');
       }
 
       const config = await res.json();
