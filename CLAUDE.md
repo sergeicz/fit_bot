@@ -15,7 +15,7 @@ A personal Telegram bot (grammY + TypeScript) that acts as a data-driven persona
 | Database | Supabase (PostgreSQL + pgvector) |
 | AI primary | Groq API (Llama 3.3 70B) |
 | AI fallback | OpenRouter (DeepSeek) |
-| Food DB | Open Food Facts (RU products) → USDA FoodData Central (fallback) |
+| Food DB | Open Food Facts (RU продукты) → Groq AI estimation (fallback) |
 | Mini App | Telegram WebApp + Chart.js |
 
 ## Development Commands
@@ -45,7 +45,6 @@ SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_KEY=
 GROQ_API_KEY=
 OPENROUTER_API_KEY=
-USDA_API_KEY=
 WEBAPP_URL=
 ```
 
@@ -76,7 +75,7 @@ WEBAPP_URL=
 - Если AI упал — молча скипается, основной response не ломается
 - `input-detector.ts` fallback (шаг 4): любой текст не распознанный как вес/еда → AI отвечает как тренер
 
-**Not yet implemented**: food APIs (Open Food Facts / USDA), workouts, adaptation, WebApp.
+**Not yet implemented**: food APIs (Open Food Facts / AI fallback), workouts, adaptation, WebApp.
 
 ## Key Patterns
 
@@ -116,7 +115,7 @@ src/
 │   ├── adaptation.service.ts 🔲 detects weight plateau + 2+ adaptation signals
 │   ├── ai.service.ts         🔲 Groq primary, OpenRouter fallback
 │   ├── memory.service.ts     🔲 RAG via pgvector
-│   └── food-api.service.ts   🔲 Open Food Facts + USDA search + caching
+│   └── food-api.service.ts   🔲 Open Food Facts + AI fallback search + caching
 ├── db/
 │   ├── client.ts             ✅ Supabase client
 │   └── types.ts              ✅ DB TypeScript types
@@ -221,7 +220,7 @@ Key notes:
 - `frequent_foods`: products added 3+ times surface first in inline keyboard. Top 8 by `use_count` in last 30 days.
 - `weights`: has `is_fasted` flag — non-fasted weigh-ins are stored but marked grey and excluded from 7-day moving average.
 - `data_compliance`: tracks per-day discipline. `meal_skipped` (user confirmed skip) ≠ not logged. Bot stops reminding after explicit skip.
-- USDA results are cached in `frequent_foods` to avoid repeat API calls.
+- Результаты Open Food Facts и AI кэшируются в `frequent_foods` для избежания повторных запросов.
 
 ## "Panic System" — Data Compliance (Section 16 of TZ)
 
@@ -259,9 +258,8 @@ The most complex feature. Bot aggressively ensures data is entered every day.
 **Planned (Stage 3) — automatic via APIs:**
 1. Fuzzy match against `frequent_foods` (≥80% → suggest immediately)
 2. → Open Food Facts API (RU products)
-3. → USDA FoodData Central API (fallback)
-4. → Groq AI estimation (marked "приблизительно")
-5. Show result with: `[✅ Подтвердить]` / `[✏️ Изменить граммы]` / `[❌ Другой продукт]`
+3. → Groq AI estimation (marked "приблизительно")
+4. Show result with: `[✅ Подтвердить]` / `[✏️ Изменить граммы]` / `[❌ Другой продукт]`
 
 ## AI Module (`ai.service.ts`)
 
@@ -295,7 +293,7 @@ System prompt is hardcoded with user profile. Key rules:
 ## MVP Development Order (7 Stages)
 1. Skeleton: Railway + Supabase + /start + weight logging + 08:00 cron
 2. Basic food: manual text input + food_logs + day summary + 20:00 cron
-3. Food APIs: Open Food Facts + USDA + frequent foods inline keyboard
+3. Food APIs: Open Food Facts + AI fallback + frequent foods inline keyboard
 4. Smart summary: daily_summary + day statuses + weight trend
 5. Workouts + cycle system + adaptation detector + weekly report cron
 6. AI: Groq + dynamic DB context + OpenRouter fallback

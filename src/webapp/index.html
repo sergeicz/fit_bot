@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="googlebot" content="noindex, nofollow">
+  <title>Фитнес Прогресс</title>
+  <script>
+    // ─── Telegram WebApp guard ──────────────────────────────────────────────────
+    // Block access if not opened inside Telegram
+    if (!window.Telegram?.WebApp?.initData) {
+      document.open();
+      document.write(
+        '<html><head><meta charset="UTF-8"><meta name="robots" content="noindex, nofollow">' +
+        '<meta name="googlebot" content="noindex, nofollow">' +
+        '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,' +
+        'BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;' +
+        'min-height:100vh;background:#1a1a1a;color:#fff;text-align:center;padding:20px}' +
+        'h1{font-size:20px;margin-bottom:12px}p{font-size:14px;color:#888;max-width:300px}' +
+        '</style></head><body><h1>🔒 Доступ ограничен</h1>' +
+        '<p>Откройте эту страницу через Telegram Mini App.</p></body></html>'
+      );
+      document.close();
+      throw new Error('Blocked: not inside Telegram WebApp');
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--tg-theme-bg-color, #f5f5f5);
+      color: var(--tg-theme-text-color, #222);
+      padding: 16px;
+      min-height: 100vh;
+    }
+
+    .header {
+      text-align: center;
+      padding: 12px 0 20px;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--tg-theme-secondary-bg-color, #fff);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .stat-card .value {
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .stat-card .label {
+      font-size: 11px;
+      color: var(--tg-theme-hint-color, #888);
+      margin-top: 2px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .tab {
+      flex: 0 0 auto;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 20px;
+      background: var(--tg-theme-secondary-bg-color, #fff);
+      color: var(--tg-theme-text-color, #222);
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .tab.active {
+      background: var(--tg-theme-button-color, #3390ec);
+      color: var(--tg-theme-button-text-color, #fff);
+    }
+
+    .chart-container {
+      background: var(--tg-theme-secondary-bg-color, #fff);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .chart-container h2 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      height: 250px;
+    }
+
+    .period-selector {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .period-btn {
+      padding: 4px 12px;
+      border: 1px solid var(--tg-theme-hint-color, #aaa);
+      border-radius: 12px;
+      background: transparent;
+      color: var(--tg-theme-text-color, #222);
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .period-btn.active {
+      background: var(--tg-theme-button-color, #3390ec);
+      color: var(--tg-theme-button-text-color, #fff);
+      border-color: transparent;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--tg-theme-hint-color, #888);
+    }
+
+    .error {
+      text-align: center;
+      padding: 40px;
+      color: #e74c3c;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📈 Прогресс</h1>
+  </div>
+
+  <div id="loading" class="loading">Загрузка данных...</div>
+  <div id="error" class="error" style="display: none;"></div>
+
+  <div id="app" style="display: none;">
+    <div class="stats" id="stats"></div>
+
+    <div class="tabs">
+      <button class="tab active" data-chart="weight">⚖️ Вес</button>
+      <button class="tab" data-chart="calories">🔥 Калории</button>
+      <button class="tab" data-chart="protein">🥩 Белок</button>
+    </div>
+
+    <div id="weight-chart" class="chart-container">
+      <h2>⚖️ Динамика веса</h2>
+      <div class="chart-wrapper"><canvas id="weightChart"></canvas></div>
+      <div class="period-selector">
+        <button class="period-btn" data-days="7">1 нед</button>
+        <button class="period-btn active" data-days="30">1 мес</button>
+        <button class="period-btn" data-days="90">3 мес</button>
+        <button class="period-btn" data-days="0">Всё</button>
+      </div>
+    </div>
+
+    <div id="calories-chart" class="chart-container" style="display: none;">
+      <h2>🔥 Калории по дням</h2>
+      <div class="chart-wrapper"><canvas id="caloriesChart"></canvas></div>
+      <div class="period-selector">
+        <button class="period-btn active" data-days="14">2 нед</button>
+        <button class="period-btn" data-days="30">1 мес</button>
+        <button class="period-btn" data-days="0">Всё</button>
+      </div>
+    </div>
+
+    <div id="protein-chart" class="chart-container" style="display: none;">
+      <h2>🥩 Белок по дням</h2>
+      <div class="chart-wrapper"><canvas id="proteinChart"></canvas></div>
+      <div class="period-selector">
+        <button class="period-btn active" data-days="14">2 нед</button>
+        <button class="period-btn" data-days="30">1 мес</button>
+        <button class="period-btn" data-days="0">Всё</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ─── Telegram WebApp init ───────────────────────────────────────────────────
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+    tg.ready();
+
+    // ─── Supabase config — fetched from server after Telegram validation ────────
+    const GATEWAY = '__WEBAPP_GATEWAY__';
+    let SUPABASE_URL = '';
+    let SUPABASE_ANON_KEY = '';
+    let supabase = null;
+
+    async function initSupabase() {
+      const res = await fetch(`${GATEWAY}/api/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: tg.initData }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Server rejected initData');
+      }
+
+      const config = await res.json();
+      SUPABASE_URL = config.supabaseUrl;
+      SUPABASE_ANON_KEY = config.supabaseAnonKey;
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    // ─── State ──────────────────────────────────────────────────────────────────
+    let userId = null;
+    let user = null;
+    let charts = {};
+    let periodDays = { weight: 30, calories: 14, protein: 14 };
+
+    // ─── Chart.js defaults ──────────────────────────────────────────────────────
+    Chart.defaults.color = getComputedStyle(document.documentElement)
+      .getPropertyValue('--tg-theme-hint-color') || '#888';
+    Chart.defaults.borderColor = 'rgba(0,0,0,0.06)';
+    Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, sans-serif';
+
+    // ─── Data fetching ──────────────────────────────────────────────────────────
+    async function loadData() {
+      try {
+        // Get user from Telegram init data or query param
+        const initUser = tg.initDataUnsafe?.user;
+        if (!initUser) {
+          throw new Error('Откройте через Telegram');
+        }
+
+        // Authenticate with server to get Supabase config
+        await initSupabase();
+
+        const { data: users } = await supabase
+          .from('users')
+          .select('*')
+          .eq('tg_id', initUser.id)
+          .single();
+
+        if (!users) {
+          throw new Error('Пользователь не найден. Запустите /start в боте.');
+        }
+
+        user = users;
+        userId = users.id;
+
+        await Promise.all([
+          fetchWeight(),
+          fetchSummary(),
+          fetchLatestCompliance(),
+        ]);
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        renderStats();
+        renderCharts();
+      } catch (err) {
+        document.getElementById('loading').style.display = 'none';
+        const errorEl = document.getElementById('error');
+        errorEl.style.display = 'block';
+        errorEl.textContent = err.message;
+      }
+    }
+
+    async function fetchWeight() {
+      const { data } = await supabase
+        .from('weights')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: true });
+      return data || [];
+    }
+
+    async function fetchSummary() {
+      const { data } = await supabase
+        .from('daily_summary')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: true });
+      return data || [];
+    }
+
+    async function fetchLatestCompliance() {
+      const today = new Date().toISOString().split('T')[0];
+      const { data } = await supabase
+        .from('data_compliance')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .maybeSingle();
+      return data;
+    }
+
+    // ─── Stats rendering ────────────────────────────────────────────────────────
+    function renderStats() {
+      const allWeights = window.__weights || [];
+      const allSummary = window.__summary || [];
+
+      const currentWeight = allWeights.length > 0
+        ? allWeights[allWeights.length - 1].weight
+        : '—';
+
+      const startWeight = user?.start_weight ?? '—';
+      const delta = allWeights.length > 1
+        ? (parseFloat(allWeights[allWeights.length - 1].weight) - parseFloat(allWeights[0].weight)).toFixed(1)
+        : '—';
+
+      const last7 = allWeights.slice(-7);
+      const avgWeight = last7.length > 0
+        ? (last7.reduce((a, b) => a + parseFloat(b.weight), 0) / last7.length).toFixed(1)
+        : '—';
+
+      const todaySummary = allSummary.find(s => s.date === new Date().toISOString().split('T')[0]);
+      const todayCal = todaySummary?.total_calories ?? '—';
+      const todayProtein = todaySummary?.total_protein ?? '—';
+
+      const statsEl = document.getElementById('stats');
+      statsEl.innerHTML = `
+        <div class="stat-card">
+          <div class="value">${typeof currentWeight === 'number' ? currentWeight.toFixed(1) : currentWeight}</div>
+          <div class="label">Текущий вес (кг)</div>
+        </div>
+        <div class="stat-card">
+          <div class="value">${typeof delta === 'string' && !isNaN(delta) ? (delta > 0 ? '+' : '') + delta : delta}</div>
+          <div class="label">Изменение (кг)</div>
+        </div>
+        <div class="stat-card">
+          <div class="value">${todayCal}</div>
+          <div class="label">Ккал сегодня</div>
+        </div>
+        <div class="stat-card">
+          <div class="value">${todayProtein}г</div>
+          <div class="label">Белок сегодня</div>
+        </div>
+      `;
+    }
+
+    // ─── Charts ─────────────────────────────────────────────────────────────────
+    function renderCharts() {
+      renderWeightChart(periodDays.weight);
+      renderCaloriesChart(periodDays.calories);
+      renderProteinChart(periodDays.protein);
+    }
+
+    function filterByDays(data, days) {
+      if (!days || days === 0) return data;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      return data.filter(d => new Date(d.date) >= cutoff);
+    }
+
+    function movingAverage(data, key, window = 7) {
+      return data.map((d, i) => {
+        const start = Math.max(0, i - window + 1);
+        const slice = data.slice(start, i + 1);
+        const avg = slice.reduce((a, b) => a + parseFloat(b[key]), 0) / slice.length;
+        return { ...d, [key]: Math.round(avg * 10) / 10 };
+      });
+    }
+
+    function renderWeightChart(days) {
+      const allWeights = window.__weights || [];
+      const filtered = filterByDays(allWeights, days);
+
+      const labels = filtered.map(d => d.date);
+      const values = filtered.map(d => parseFloat(d.weight));
+      const fasted = filtered.map(d => d.is_fasted ? parseFloat(d.weight) : null);
+      const nonFasted = filtered.map(d => !d.is_fasted ? parseFloat(d.weight) : null);
+
+      const trendData = movingAverage(filtered, 'weight', 7);
+      const trend = trendData.map(d => parseFloat(d.weight));
+
+      if (charts.weight) charts.weight.destroy();
+
+      const ctx = document.getElementById('weightChart').getContext('2d');
+      charts.weight = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Вес (натощак)',
+              data: fasted,
+              borderColor: '#3390ec',
+              backgroundColor: 'rgba(51,144,236,0.1)',
+              tension: 0.3,
+              pointRadius: 3,
+              spanGaps: true,
+            },
+            {
+              label: 'Вес (не натощак)',
+              data: nonFasted,
+              borderColor: '#999',
+              borderDash: [5, 5],
+              pointRadius: 2,
+              pointStyle: 'triangle',
+              spanGaps: true,
+            },
+            {
+              label: 'Тренд (7 дней)',
+              data: trend,
+              borderColor: '#ff9800',
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.4,
+              fill: false,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+          },
+          scales: {
+            x: { display: false },
+            y: {
+              grid: { color: 'rgba(0,0,0,0.05)' },
+              ticks: { callback: v => v + ' кг' },
+            },
+          },
+        },
+      });
+    }
+
+    function renderCaloriesChart(days) {
+      const allSummary = window.__summary || [];
+      const filtered = filterByDays(allSummary, days);
+
+      const labels = filtered.map(d => d.date);
+      const actual = filtered.map(d => d.total_calories || 0);
+      const target = filtered.map(d => d.target_calories || 0);
+
+      if (charts.calories) charts.calories.destroy();
+
+      const ctx = document.getElementById('caloriesChart').getContext('2d');
+      charts.calories = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Факт',
+              data: actual,
+              backgroundColor: actual.map((a, i) => {
+                const t = target[i];
+                if (!t) return '#888';
+                return Math.abs(a - t) <= 100 ? '#4caf50' : a > t ? '#ff9800' : '#f44336';
+              }),
+              borderRadius: 4,
+            },
+            {
+              label: 'Цель',
+              data: target,
+              type: 'line',
+              borderColor: '#3390ec',
+              borderWidth: 1.5,
+              pointRadius: 0,
+              borderDash: [4, 4],
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+          },
+          scales: {
+            x: { display: false },
+            y: {
+              grid: { color: 'rgba(0,0,0,0.05)' },
+              ticks: { callback: v => v + ' ккал' },
+            },
+          },
+        },
+      });
+    }
+
+    function renderProteinChart(days) {
+      const allSummary = window.__summary || [];
+      const filtered = filterByDays(allSummary, days);
+
+      const labels = filtered.map(d => d.date);
+      const protein = filtered.map(d => d.total_protein || 0);
+      const minLine = Array(filtered.length).fill(160);
+
+      if (charts.protein) charts.protein.destroy();
+
+      const ctx = document.getElementById('proteinChart').getContext('2d');
+      charts.protein = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Белок (г)',
+              data: protein,
+              borderColor: '#4caf50',
+              backgroundColor: 'rgba(76,175,80,0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 3,
+              pointBackgroundColor: protein.map(p => p < 140 ? '#f44336' : p < 160 ? '#ff9800' : '#4caf50'),
+            },
+            {
+              label: 'Минимум 160г',
+              data: minLine,
+              borderColor: '#f44336',
+              borderWidth: 1.5,
+              pointRadius: 0,
+              borderDash: [4, 4],
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+          },
+          scales: {
+            x: { display: false },
+            y: {
+              grid: { color: 'rgba(0,0,0,0.05)' },
+              ticks: { callback: v => v + 'г' },
+              beginAtZero: false,
+            },
+          },
+        },
+      });
+    }
+
+    // ─── Event listeners ────────────────────────────────────────────────────────
+    // Tabs
+    document.querySelectorAll('.tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const chartId = btn.dataset.chart;
+        document.querySelectorAll('[id$="-chart"]').forEach(el => el.style.display = 'none');
+        document.getElementById(`${chartId}-chart`).style.display = 'block';
+      });
+    });
+
+    // Period selectors
+    document.querySelectorAll('.period-selector').forEach(selector => {
+      selector.querySelectorAll('.period-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          selector.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+
+          const days = parseInt(btn.dataset.days);
+          const container = selector.closest('.chart-container');
+          const chartId = container.id.replace('-chart', '');
+
+          periodDays[chartId] = days;
+          if (chartId === 'weight') renderWeightChart(days);
+          if (chartId === 'calories') renderCaloriesChart(days);
+          if (chartId === 'protein') renderProteinChart(days);
+        });
+      });
+    });
+
+    // ─── Init ───────────────────────────────────────────────────────────────────
+    loadData();
+  </script>
+</body>
+</html>

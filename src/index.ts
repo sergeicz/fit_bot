@@ -1,5 +1,9 @@
 import 'dotenv/config';
 import cron from 'node-cron';
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
 import { bot } from './bot';
 import {
   sendDaySummary20,
@@ -75,6 +79,88 @@ cron.schedule('0 20 * * 0', () => {
 
 // ─── Load knowledge base ──────────────────────────────────────────────────────
 loadKnowledgeBase().catch(console.error);
+
+// ─── Express server for WebApp ─────────────────────────────────────────────────
+const app = express();
+app.use(express.json());
+const PORT = process.env.PORT || 3000;
+
+const webappDir = path.join(__dirname, 'webapp');
+
+/**
+ * Validates Telegram WebApp initData by checking HMAC-SHA256 signature.
+ * Returns true only if the request came from a legitimate Telegram WebApp.
+ */
+function isValidTelegramInitData(initData: string): boolean {
+  const botToken = process.env.BOT_TOKEN;
+  if (!botToken || !initData) return false;
+
+  const params = new URLSearchParams(initData);
+  const hash = params.get('hash');
+  if (!hash) return false;
+
+  params.delete('hash');
+  const sortedParams = Array.from(params.entries()).sort(([a], [b]) => a.localeCompare(b));
+  const dataCheckString = sortedParams.map(([key, value]) => `${key}=${value}`).join('\n');
+
+  const secretKey = crypto
+    .createHmac('sha256', 'WebAppData')
+    .update(botToken)
+    .digest();
+
+  const computedHash = crypto
+    .createHmac('sha256', secretKey)
+    .update(dataCheckString)
+    .digest('hex');
+
+  return computedHash === hash;
+}
+
+// Block search engine indexing
+app.use((_req, res, next) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet');
+  next();
+});
+
+// Serve static files (CSS, JS, images — but NOT HTML)
+app.use(express.static(webappDir));
+
+// POST /api/verify — validate Telegram initData, return Supabase config
+app.post('/api/verify', (req, res) => {
+  const { initData } = req.body;
+
+  if (!initData || !isValidTelegramInitData(initData)) {
+    return res.status(403).send('🔒 Доступ ограничен.');
+  }
+
+  res.json({
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+  });
+});
+
+// Serve index.html — lightweight shell that validates initData client-side
+app.get('/', (_req, res) => {
+  const htmlPath = path.join(webappDir, 'index.html');
+  if (!fs.existsSync(htmlPath)) {
+    return res.status(404).send('WebApp not built. Run `npm run build` first.');
+  }
+
+  let html = fs.readFileSync(htmlPath, 'utf-8');
+
+  // Inject config so the client-side code can verify with the server
+  html = html.replace(
+    '__WEBAPP_GATEWAY__',
+    process.env.WEBAPP_URL || 'https://fit.pushkarev.online',
+  );
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
+});
+
+app.listen(PORT, () => {
+  console.log(`WebApp serving on http://localhost:${PORT}`);
+});
 
 // ─── Start bot ────────────────────────────────────────────────────────────────
 console.log('Starting fitness bot...');

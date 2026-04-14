@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx tsx:*)",
+      "Bash(nslookup:*)",
+      "Bash(node -e ':*)",
+      "Bash(supabase:*)",
+      "Bash(npx supabase:*)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_a0b8c80953199366c1fb5239d3cf225b28d0c27f npx supabase link --project-ref rbhtywicrfdrraamculi)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_a0b8c80953199366c1fb5239d3cf225b28d0c27f npx supabase db push)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_a0b8c80953199366c1fb5239d3cf225b28d0c27f npx supabase init)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_a0b8c80953199366c1fb5239d3cf225b28d0c27f npx supabase migration new initial_schema)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_a0b8c80953199366c1fb5239d3cf225b28d0c27f npx supabase db execute --sql \"SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;\")",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_a0b8c80953199366c1fb5239d3cf225b28d0c27f npx supabase db query \"SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;\")",
+      "Bash(pkill -f \"tsx watch src/index.ts\")",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(taskkill /F /FI \"WINDOWTITLE eq *tsx*\")",
+      "Bash(taskkill /F /FI \"COMMANDLINE eq *fitness_bot*\")",
+      "Bash(wmic process:*)",
+      "Bash(rtk tsc:*)",
+      "Bash(rtk lint:*)",
+      "Bash(npx biome:*)",
+      "Bash(npx tsc:*)",
+      "Bash(rtk git:*)",
+      "Bash(node -e \"const p = require\\('pdf-parse'\\); console.log\\(typeof p, typeof p.default\\)\")"
+    ]
+  }
+}

@@ -106,4 +106,6 @@ export interface PendingFoodItem {
   fat: number;
   carbs: number;
   source: string;
+  /** Set when source === 'recipe' — used to increment use_count on confirm */
+  recipeId?: string;
 }

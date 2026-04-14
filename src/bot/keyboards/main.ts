@@ -1,5 +1,7 @@
 import { InlineKeyboard } from 'grammy';
 
+const WEBAPP_URL = process.env.WEBAPP_URL || 'https://fit.pushkarev.online';
+
 export function mainKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text('⚖️ Внести вес', 'action:log_weight')
@@ -9,7 +11,7 @@ export function mainKeyboard(): InlineKeyboard {
     .text('📊 Итог дня', 'action:daily_summary')
     .row()
     .text('🚶 Шаги', 'action:log_steps')
-    .text('📈 Прогресс', 'action:progress');
+    .webApp('📈 Прогресс', WEBAPP_URL);
 }
 
 export function backToMenuKeyboard(): InlineKeyboard {
