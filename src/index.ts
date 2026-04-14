@@ -145,8 +145,13 @@ app.post('/api/verify', async (req, res) => {
   });
 });
 
-// Serve index.html — lightweight shell that validates initData client-side
-app.get('/', (_req, res) => {
+// Serve index.html — only if accessed from Telegram (tgWebAppData query param present)
+app.get('/', (req, res) => {
+  // tgWebAppData is added by Telegram when opening Mini App
+  if (!req.query.tgWebAppData) {
+    return res.status(404).send('Not Found');
+  }
+
   const htmlPath = path.join(webappDir, 'index.html');
   if (!fs.existsSync(htmlPath)) {
     return res.status(404).send('WebApp not built. Run `npm run build` first.');

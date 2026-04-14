@@ -200,15 +200,7 @@
     let supabase = null;
 
     async function initSupabase() {
-      // Wait for initData to be available (can take a moment in some Telegram clients)
-      let initData = tg.initData;
-      let retries = 0;
-      while (!initData && retries < 10) {
-        await new Promise(r => setTimeout(r, 200));
-        initData = tg.initData;
-        retries++;
-      }
-
+      const initData = tg.initData;
       if (!initData) {
         throw new Error('Telegram Mini App: initData не доступен');
       }
