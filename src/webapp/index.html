@@ -569,9 +569,7 @@
 
     function renderWeightChart(days) {
       const filtered = filterByDays(weightData, days);
-      const fasted    = filtered.map(d => d.is_fasted  ? parseFloat(d.weight) : null);
-      const nonFasted = filtered.map(d => !d.is_fasted ? parseFloat(d.weight) : null);
-      const trend     = movingAverage(filtered, 'weight', 7).map(d => parseFloat(d.weight));
+      const weights  = filtered.map(d => parseFloat(d.weight));
 
       if (charts.weight) charts.weight.destroy();
       charts.weight = new Chart(document.getElementById('weightChart'), {
@@ -580,32 +578,14 @@
           labels: filtered.map(d => d.date),
           datasets: [
             {
-              label: 'Натощак',
-              data: fasted,
+              label: 'Вес',
+              data: weights,
               borderColor: '#3d9ef5',
               backgroundColor: 'rgba(61,158,245,0.08)',
               tension: 0.3,
               pointRadius: 3,
               pointBackgroundColor: '#3d9ef5',
-              spanGaps: true,
               fill: true,
-            },
-            {
-              label: 'Не натощак',
-              data: nonFasted,
-              borderColor: 'rgba(255,255,255,0.3)',
-              borderDash: [4, 4],
-              pointRadius: 2,
-              pointStyle: 'triangle',
-              spanGaps: true,
-            },
-            {
-              label: 'Тренд 7д',
-              data: trend,
-              borderColor: '#ff8c42',
-              borderWidth: 2.5,
-              pointRadius: 0,
-              tension: 0.5,
             },
           ],
         },
@@ -650,7 +630,7 @@
             },
           ],
         },
-        options: chartOptions(v => v + ' ккал'),
+        options: chartOptions(v => v + ' ккал', true, true),
       });
     }
 
@@ -686,17 +666,18 @@
             },
           ],
         },
-        options: chartOptions(v => v + 'г', false),
+        options: chartOptions(v => v + 'г', false, true),
       });
     }
 
-    function chartOptions(tickCb, beginAtZero = true) {
+    function chartOptions(tickCb, beginAtZero = true, showLegend = false) {
       return {
         responsive: true,
         maintainAspectRatio: false,
         animation: { duration: 400, easing: 'easeOutQuart' },
         plugins: {
           legend: {
+            display: showLegend,
             position: 'bottom',
             labels: { boxWidth: 10, font: { size: 11 }, color: 'rgba(255,255,255,0.5)', padding: 12 },
           },
