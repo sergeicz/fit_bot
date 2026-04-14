@@ -10,6 +10,19 @@ import {
   skipMealHandler,
 } from './commands/food';
 import { startCommand } from './commands/start';
+import {
+  recipeCreateHandler,
+  recipeDeleteConfirmHandler,
+  recipeDeleteHandler,
+  recipeEditHandler,
+  recipeIngredientsHandler,
+  recipeListHandler,
+  recipeLogHandler,
+  recipeNameHandler,
+  recipePortionHandler,
+  recipeViewHandler,
+  recipesMenuHandler,
+} from './commands/recipes';
 import { stepsCallbackHandler, stepsTextHandler } from './commands/steps';
 import { weightCallbackHandler, weightTextHandler } from './commands/weight';
 import { backToMenuKeyboard } from './keyboards/main';
@@ -54,6 +67,14 @@ bot.callbackQuery('food:skip_meal1', (ctx) => skipMealHandler(ctx, 1));
 bot.callbackQuery('food:skip_meal2', (ctx) => skipMealHandler(ctx, 2));
 bot.callbackQuery('food:skip_meal3', (ctx) => skipMealHandler(ctx, 3));
 bot.callbackQuery('action:log_steps', stepsCallbackHandler);
+bot.callbackQuery('action:recipes_menu', recipesMenuHandler);
+bot.callbackQuery('recipe:list', recipeListHandler);
+bot.callbackQuery('recipe:create', recipeCreateHandler);
+bot.callbackQuery(/^recipe:view:/, recipeViewHandler);
+bot.callbackQuery(/^recipe:log:/, recipeLogHandler);
+bot.callbackQuery(/^recipe:edit:/, recipeEditHandler);
+bot.callbackQuery(/^recipe:del:/, recipeDeleteHandler);
+bot.callbackQuery(/^recipe:del_confirm:/, recipeDeleteConfirmHandler);
 bot.callbackQuery('steps:unavailable', async (ctx) => {
   await ctx.answerCallbackQuery();
   const { id: userId } = ctx.dbUser;
@@ -78,6 +99,11 @@ bot.on('message:text', weightTextHandler);
 
 // Steps text handler
 bot.on('message:text', stepsTextHandler);
+
+// Recipe multi-step text handlers
+bot.on('message:text', recipeNameHandler);
+bot.on('message:text', recipeIngredientsHandler);
+bot.on('message:text', recipePortionHandler);
 
 // ─── Error handler ────────────────────────────────────────────────────────────
 bot.catch((err) => {

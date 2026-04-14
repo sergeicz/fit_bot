@@ -11,6 +11,8 @@ export function mainKeyboard(): InlineKeyboard {
     .text('📊 Итог дня', 'action:daily_summary')
     .row()
     .text('🚶 Шаги', 'action:log_steps')
+    .text('📖 Рецепты', 'action:recipes_menu')
+    .row()
     .webApp('📈 Прогресс', WEBAPP_URL);
 }
 

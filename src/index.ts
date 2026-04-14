@@ -117,8 +117,8 @@ app.use((_req, res, next) => {
   next();
 });
 
-// Serve static files (CSS, JS, images — but NOT HTML)
-app.use(express.static(webappDir));
+// Serve static files (CSS, JS, images — but NOT HTML directly, so GET / goes through template substitution)
+app.use(express.static(webappDir, { index: false }));
 
 // POST /api/verify — validate WebApp access, return Supabase config
 app.post('/api/verify', async (req, res) => {

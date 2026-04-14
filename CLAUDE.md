@@ -75,13 +75,22 @@ WEBAPP_URL=
 - Если AI упал — молча скипается, основной response не ломается
 - `input-detector.ts` fallback (шаг 4): любой текст не распознанный как вес/еда → AI отвечает как тренер
 
-**Not yet implemented**: food APIs (Open Food Facts / AI fallback), workouts, adaptation, WebApp.
+**Stage 4 complete** (food APIs + adaptation + weekly cron + recipes + steps):
+- `food-api.service.ts` — full lookup chain: user cache → Open Food Facts → Groq AI estimate; `lookupAllItems` runs all items in parallel; results cached in `frequent_foods`
+- `adaptation.service.ts` — checks 3 signals simultaneously: `weight_plateau` (10 days, <0.5 kg spread), `low_steps` (7-day avg <5000), `kcal_gap` (7-day avg deficit >300 kcal over target); fires recommendation when 2+ signals present
+- `weekly.ts` cron — Sunday 20:00: sends 7-day table, averages, week-over-week comparison, adaptation warning, AI comment; calls `checkAdaptation` internally
+- `calculator.ts` — `weeklyDeficit`, `deficitToFatLoss`, `average`, `proteinAdherence`, `stepsAdherence`, `countByStatus`
+- **Recipes system** (`recipe.service.ts` + `commands/recipes.ts`): create/edit/delete/view recipes, log portions by grams; per-100g KBZHU computed from ingredients via food-api lookup; stored in `recipes` DB table
+- **Steps logging** (`commands/steps.ts`): `🚶 Шаги` button → enter count or "нет часов"; saves to `daily_summary.steps`; triggers `recomputeDailySummary`
+- `knowledge.service.ts` — in-memory keyword-based RAG over `knowledge/` folder (`.txt` + `.pdf` via `pdf-parse`); `loadKnowledgeBase()` called at startup; `findRelevantChunks(query, topK)` used to inject context into AI prompts
+
+**Not yet implemented**: workouts, WebApp (Chart.js charts — `src/webapp/index.html` stub exists).
 
 ## Key Patterns
 
 **`BotContext`** (`src/bot/types.ts`): all handlers receive `ctx.dbUser: DbUser` injected by `authMiddleware`. Never access the DB directly in commands — use services.
 
-**Session state machine** (`ctx.session.step`): multi-step flows use the `step` field. Known steps: `awaiting_weight`, `awaiting_weight_not_fasted`, `awaiting_food_text`, `awaiting_food_nutrition`, `awaiting_food_grams`, `awaiting_food_confirm`, `awaiting_steps`. `inputDetector` runs first, checks `step`, routes accordingly. Reset `step` to `null` when flow completes.
+**Session state machine** (`ctx.session.step`): multi-step flows use the `step` field. Known steps: `awaiting_weight`, `awaiting_weight_not_fasted`, `awaiting_food_text`, `awaiting_food_nutrition`, `awaiting_food_grams`, `awaiting_food_confirm`, `awaiting_steps`, `awaiting_recipe_name`, `awaiting_recipe_ingredients`, `awaiting_recipe_portion`. `inputDetector` runs first, checks `step`, routes accordingly. Reset `step` to `null` when flow completes. Session also carries `pendingFood`, `pendingFrequentFood`, `pendingRecipe`, `pendingRecipePortion`.
 
 **Cron**: uses `node-cron` in-process (not Railway native cron). Requires `TZ=Europe/Moscow` env var on Railway for Moscow-time expressions to work.
 
@@ -100,7 +109,9 @@ src/
 │   ├── commands/
 │   │   ├── start.ts          ✅ /start, /menu — shows day info + main keyboard
 │   │   ├── weight.ts         ✅ weight logging flow (fasted/non-fasted)
-│   │   └── food.ts           ✅ food logging (2-step manual: parse text → kcal+protein)
+│   │   ├── food.ts           ✅ food logging (auto-lookup via food-api → confirm/manual fallback)
+│   │   ├── steps.ts          ✅ steps logging ("нет часов" → steps_unavailable flag)
+│   │   └── recipes.ts        ✅ full CRUD + portion logging; session steps: recipe_name/ingredients/portion
 │   ├── keyboards/
 │   │   └── main.ts           ✅ main keyboard + backToMenuKeyboard
 │   └── middlewares/
@@ -111,23 +122,25 @@ src/
 │   ├── weight.service.ts     ✅ saveWeight, getWeightHistory, getWeightTrend, buildWeightConfirmText
 │   ├── food.service.ts       ✅ saveFood, recomputeDailySummary, getDailySummary, markMealSkipped, buildDaySummaryText
 │   ├── ai.service.ts         ✅ getAICommentary (Groq→OpenRouter), buildContextText, 4 triggers
-│   ├── cycle.service.ts      🔲 6-cycle logic and diet break detection
-│   ├── adaptation.service.ts 🔲 detects weight plateau + 2+ adaptation signals
-│   ├── ai.service.ts         🔲 Groq primary, OpenRouter fallback
-│   ├── memory.service.ts     🔲 RAG via pgvector
-│   └── food-api.service.ts   🔲 Open Food Facts + AI fallback search + caching
+│   ├── food-api.service.ts   ✅ lookupFoodNutrition (cache→OFF→AI), lookupAllItems, cacheFood, formatFoodSearchResults
+│   ├── recipe.service.ts     ✅ recipeService CRUD + calcRecipePer100 + buildRecipeCard; table: recipes
+│   ├── adaptation.service.ts ✅ checkAdaptation — 3 signals (weight_plateau/low_steps/kcal_gap), fires when 2+
+│   ├── knowledge.service.ts  ✅ loadKnowledgeBase (txt+pdf), findRelevantChunks (keyword scoring, no embeddings)
+│   ├── cycle.service.ts      🔲 6-cycle logic (currently inlined in day-type.ts utilities)
+│   └── memory.service.ts     🔲 RAG via pgvector (knowledge.service.ts is the interim replacement)
 ├── db/
 │   ├── client.ts             ✅ Supabase client
 │   └── types.ts              ✅ DB TypeScript types
 ├── cron/
 │   ├── morning.ts            ✅ 08:00 (sendMorningReminder), 09:30 (sendMorningRepeat), 11:00 (sendMorningHard)
 │   ├── meals.ts              ✅ 13:00 / 14:00 / 16:30 / 17:30 / 19:30 / 20:00
-│   └── weekly.ts             🔲 Sunday 20:00 — measurements + weekly report
-├── webapp/                   🔲 Telegram Mini App + Chart.js
+│   └── weekly.ts             ✅ Sunday 20:00 — 7-day table, week-over-week, adaptation check, AI comment
+├── webapp/
+│   └── index.html            🔲 stub only — Chart.js charts not yet implemented
 └── utils/
-    ├── parser.ts             ✅ parse "курица 200г рис 100г" → [{name, grams}]
+    ├── parser.ts             ✅ parseFoodText — extracts [{name, grams}] from Russian food text
     ├── day-type.ts           ✅ getDayType, getTargetCalories, getWeekNumber, getCycleInfo, getMealSlot, isEatingWindow, etc.
-    └── calculator.ts         🔲 TDEE, deficit, weekly fat loss estimate
+    └── calculator.ts         ✅ weeklyDeficit, deficitToFatLoss, average, proteinAdherence, stepsAdherence, countByStatus
 ```
 
 ## Free-Text Input (Always-On)
@@ -249,17 +262,26 @@ The most complex feature. Bot aggressively ensures data is entered every day.
 
 ## Food Parser (`parser.ts`)
 
-**Current (Stage 2) — manual nutrition entry:**
-1. Regex extracts `(product, grams)` pairs — handles г/гр/грамм, шт/штук
-2. Shows parsed items preview to user
-3. Asks user to enter `kcal protein` manually (e.g. `580 75`)
-4. Saves to DB with `source: 'manual'`
+`parseFoodText` extracts `(product, grams)` pairs — handles г/гр/грамм, шт/штук. Returns `ParsedFoodItem[]`.
 
-**Planned (Stage 3) — automatic via APIs:**
-1. Fuzzy match against `frequent_foods` (≥80% → suggest immediately)
-2. → Open Food Facts API (RU products)
-3. → Groq AI estimation (marked "приблизительно")
-4. Show result with: `[✅ Подтвердить]` / `[✏️ Изменить граммы]` / `[❌ Другой продукт]`
+**Automatic nutrition lookup (`food-api.service.ts`):**
+1. `frequent_foods` user cache (ilike match, ordered by `use_count`)
+2. → Open Food Facts API (`world.openfoodfacts.org`, 6s timeout, appends "raw" to query)
+3. → Groq AI estimation (`{"kcal":0,"protein":0,"fat":0,"carbs":0}` JSON, marked source `'ai'`)
+
+Source badge in UI: `📁` cache, `🌍` OFF, `🤖~` AI estimate. All results per-100g then scaled to actual grams.
+
+## Recipes (`recipe.service.ts` + `commands/recipes.ts`)
+
+Users create named recipes with ingredient lists. Ingredients are looked up via `food-api` at creation time to compute per-100g KBZHU. Stored in `recipes` table with `ingredients: JSONB` (array of `RecipeIngredient`).
+
+**Session flow:** `recipe:create` callback → `awaiting_recipe_name` → `awaiting_recipe_ingredients` (parseFoodText + lookupAllItems) → saved immediately. Editing jumps directly to `awaiting_recipe_ingredients` with `editingId` in `pendingRecipe`.
+
+**Logging a portion:** `recipe:log:<id>` → `awaiting_recipe_portion` → enter grams → saves to `food_logs` with `source: 'recipe'`, increments `use_count`.
+
+## Knowledge Base (`knowledge.service.ts`)
+
+PDF and TXT files in `knowledge/` folder are chunked at startup (600-char chunks, 100-char overlap). `findRelevantChunks(query, topK)` scores by keyword overlap (no embeddings). Called inside `ai.service.ts` to inject relevant excerpts into the system prompt for `question` trigger. Gracefully skips if `knowledge/` folder is absent.
 
 ## AI Module (`ai.service.ts`)
 

@@ -6,6 +6,7 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="googlebot" content="noindex, nofollow">
   <title>Фитнес Прогресс</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
@@ -190,6 +191,17 @@
   <script>
     // ─── Telegram WebApp init ───────────────────────────────────────────────────
     const tg = window.Telegram.WebApp;
+
+    // Guard: block browser access — only open inside Telegram
+    if (!tg.initData) {
+      document.getElementById('loading').style.display = 'none';
+      const errEl = document.getElementById('error');
+      errEl.style.display = 'block';
+      errEl.innerHTML = '<h2>404</h2><p>Not Found</p>';
+      document.title = '404 Not Found';
+      throw new Error('not-telegram'); // stop script execution via uncaught error in loadData
+    }
+
     tg.expand();
     tg.ready();
 
@@ -227,6 +239,8 @@
     let user = null;
     let charts = {};
     let periodDays = { weight: 30, calories: 14, protein: 14 };
+    let weightData = [];
+    let summaryData = [];
 
     // ─── Chart.js defaults ──────────────────────────────────────────────────────
     Chart.defaults.color = getComputedStyle(document.documentElement)
@@ -257,11 +271,13 @@
         user = users;
         userId = users.id;
 
-        await Promise.all([
+        const [weights, summaries] = await Promise.all([
           fetchWeight(),
           fetchSummary(),
           fetchLatestCompliance(),
         ]);
+        weightData = weights;
+        summaryData = summaries;
 
         document.getElementById('loading').style.display = 'none';
         document.getElementById('app').style.display = 'block';
@@ -306,8 +322,8 @@
 
     // ─── Stats rendering ────────────────────────────────────────────────────────
     function renderStats() {
-      const allWeights = window.__weights || [];
-      const allSummary = window.__summary || [];
+      const allWeights = weightData;
+      const allSummary = summaryData;
 
       const currentWeight = allWeights.length > 0
         ? allWeights[allWeights.length - 1].weight
@@ -372,7 +388,7 @@
     }
 
     function renderWeightChart(days) {
-      const allWeights = window.__weights || [];
+      const allWeights = weightData;
       const filtered = filterByDays(allWeights, days);
 
       const labels = filtered.map(d => d.date);
@@ -438,7 +454,7 @@
     }
 
     function renderCaloriesChart(days) {
-      const allSummary = window.__summary || [];
+      const allSummary = summaryData;
       const filtered = filterByDays(allSummary, days);
 
       const labels = filtered.map(d => d.date);
@@ -492,7 +508,7 @@
     }
 
     function renderProteinChart(days) {
-      const allSummary = window.__summary || [];
+      const allSummary = summaryData;
       const filtered = filterByDays(allSummary, days);
 
       const labels = filtered.map(d => d.date);
