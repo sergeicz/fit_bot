@@ -141,9 +141,7 @@ export async function sendMorningHard(): Promise<void> {
     if (compliance?.weight_logged) continue;
 
     const keyboard = new InlineKeyboard()
-      .text('⚖️ Внести натощак', 'action:log_weight')
-      .row()
-      .text('⚖️ Внести (не натощак)', 'weight:not_fasted');
+      .text('⚖️ Внести вес', 'action:log_weight');
 
     try {
       await bot.api.sendMessage(

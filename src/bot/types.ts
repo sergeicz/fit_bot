@@ -5,7 +5,6 @@ export interface SessionData {
   /** Current conversation step for multi-step flows */
   step:
     | 'awaiting_weight'
-    | 'awaiting_weight_not_fasted'
     | 'awaiting_food_text'
     | 'awaiting_food_nutrition'
     | 'awaiting_food_grams'

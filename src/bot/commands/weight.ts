@@ -12,16 +12,13 @@ export async function weightCallbackHandler(ctx: BotContext): Promise<void> {
   await ctx.answerCallbackQuery();
   ctx.session.step = 'awaiting_weight';
 
-  await ctx.reply('⚖️ Введи вес (натощак, до еды).\nПример: *95.4*', { parse_mode: 'Markdown' });
+  await ctx.reply('⚖️ Введи вес.\nПример: *95.4*', { parse_mode: 'Markdown' });
 }
 
 // ─── Text handler: processes weight value ─────────────────────────────────────
 
 export async function weightTextHandler(ctx: BotContext): Promise<void> {
-  if (ctx.session.step !== 'awaiting_weight' && ctx.session.step !== 'awaiting_weight_not_fasted') {
-    return;
-  }
-
+  if (ctx.session.step !== 'awaiting_weight') return;
   await handleWeightInput(ctx);
 }
 
@@ -38,7 +35,6 @@ export async function handleWeightInput(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const isFasted = ctx.session.step !== 'awaiting_weight_not_fasted';
   ctx.session.step = null;
 
   const today = todayString();
@@ -46,7 +42,7 @@ export async function handleWeightInput(ctx: BotContext): Promise<void> {
   const startDate = new Date(start_date);
 
   // Save first so subsequent queries see the new weight
-  await weightService.saveWeight({ userId, date: today, weight, isFasted, startDate });
+  await weightService.saveWeight({ userId, date: today, weight, isFasted: true, startDate });
 
   // Then fetch trend, history, AI commentary and adaptation check in parallel
   const [trend, history, aiComment, adaptation] = await Promise.all([
@@ -57,7 +53,7 @@ export async function handleWeightInput(ctx: BotContext): Promise<void> {
       userId,
       startDate,
       goalWeight: goal_weight,
-      eventDetail: `записал вес ${weight} кг${isFasted ? ' (натощак)' : ' (не натощак)'}`,
+      eventDetail: `записал вес ${weight} кг`,
     }),
     checkAdaptation(userId),
   ]);
@@ -77,7 +73,7 @@ export async function handleWeightInput(ctx: BotContext): Promise<void> {
   let confirmText =
     buildWeightConfirmText({
       weight,
-      isFasted,
+      isFasted: true,
       trend,
       weekNumber,
       cycleNumber,
@@ -99,10 +95,3 @@ export async function handleWeightInput(ctx: BotContext): Promise<void> {
   });
 }
 
-// ─── "Not fasted" shortcut ────────────────────────────────────────────────────
-
-export function notFastedKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
-    .text('⚖️ Внести вес (не натощак)', 'weight:not_fasted')
-    .text('⚖️ Внести натощак', 'action:log_weight');
-}

@@ -139,10 +139,9 @@ export function buildWeightConfirmText(params: {
   isDietBreak: boolean;
   goalWeight: number;
 }): string {
-  const { weight, isFasted, trend, weekNumber, cycleNumber, isDietBreak, goalWeight } = params;
+  const { weight, trend, weekNumber, cycleNumber, isDietBreak, goalWeight } = params;
 
-  const fastedNote = isFasted ? '' : ' _(не натощак)_';
-  let text = `✅ Записал: *${weight} кг*${fastedNote}\n\n`;
+  let text = `✅ Записал: *${weight} кг*\n\n`;
 
   if (trend !== null) {
     const trendSign = trend > 0 ? '+' : '';

@@ -38,7 +38,7 @@ export async function inputDetector(ctx: BotContext, next: NextFunction): Promis
   }
 
   // 1. Respect active flow
-  if (ctx.session.step === 'awaiting_weight' || ctx.session.step === 'awaiting_weight_not_fasted') {
+  if (ctx.session.step === 'awaiting_weight') {
     await handleWeightInput(ctx);
     return;
   }
