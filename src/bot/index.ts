@@ -1,4 +1,6 @@
 import { Bot, session } from 'grammy';
+import { supabase } from '../db/client';
+import { todayString } from '../utils/day-type';
 import {
   dailySummaryHandler,
   foodCommand,
@@ -10,6 +12,7 @@ import {
 import { startCommand } from './commands/start';
 import { stepsCallbackHandler, stepsTextHandler } from './commands/steps';
 import { weightCallbackHandler, weightTextHandler } from './commands/weight';
+import { backToMenuKeyboard } from './keyboards/main';
 import { authMiddleware } from './middlewares/auth';
 import { inputDetector } from './middlewares/input-detector';
 import type { BotContext, SessionData } from './types';
@@ -51,6 +54,20 @@ bot.callbackQuery('food:skip_meal1', (ctx) => skipMealHandler(ctx, 1));
 bot.callbackQuery('food:skip_meal2', (ctx) => skipMealHandler(ctx, 2));
 bot.callbackQuery('food:skip_meal3', (ctx) => skipMealHandler(ctx, 3));
 bot.callbackQuery('action:log_steps', stepsCallbackHandler);
+bot.callbackQuery('steps:unavailable', async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const { id: userId } = ctx.dbUser;
+  const today = todayString();
+  await supabase
+    .from('daily_summary')
+    .upsert(
+      { user_id: userId, date: today, steps: null, steps_unavailable: true },
+      { onConflict: 'user_id,date' },
+    );
+  await ctx.editMessageText('📵 Понял, часы не носил — шаги не записаны.', {
+    reply_markup: backToMenuKeyboard(),
+  });
+});
 
 // ─── Free-text routing ────────────────────────────────────────────────────────
 // inputDetector runs first to route by session step or auto-detect intent.

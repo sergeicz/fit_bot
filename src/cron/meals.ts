@@ -30,14 +30,14 @@ export async function sendMealAndWeightPanic13(): Promise<void> {
     const keyboard = new InlineKeyboard();
 
     if (weightMissing) {
-      text += `🚨 Уже 13:00 — вес всё ещё не записан!\n`;
-      text += `Без веса тренд неточный. Взвесься сейчас, даже если уже поел.\n\n`;
+      text += '🚨 Уже 13:00 — вес всё ещё не записан!\n';
+      text += 'Без веса тренд неточный. Взвесься сейчас, даже если уже поел.\n\n';
       keyboard.text('⚖️ Внести вес', 'action:log_weight').row();
     }
 
     if (meal1Missing) {
-      text += `🍽️ Приём 1 (11:00) не записан.\n`;
-      text += `Не помнишь точно — запиши примерно, это лучше чем ничего.`;
+      text += '🍽️ Приём 1 (11:00) не записан.\n';
+      text += 'Не помнишь точно — запиши примерно, это лучше чем ничего.';
       keyboard.text('🍽️ Записать', 'action:food_menu').text('Пропустил', 'food:skip_meal1');
     }
 
@@ -201,14 +201,49 @@ export async function sendMeal3Reminder1930(): Promise<void> {
   }
 }
 
+// ─── 23:00 — steps reminder ───────────────────────────────────────────────────
+
+export async function sendStepsReminder23(): Promise<void> {
+  const today = todayString();
+
+  const { data: users } = await supabase.from('users').select('id, tg_id');
+  if (!users) return;
+
+  for (const user of users) {
+    // Skip if steps already logged or marked unavailable
+    const { data: summary } = await supabase
+      .from('daily_summary')
+      .select('steps, steps_unavailable')
+      .eq('user_id', user.id)
+      .eq('date', today)
+      .single();
+
+    if (summary?.steps != null || summary?.steps_unavailable) continue;
+
+    const keyboard = new InlineKeyboard()
+      .text('🚶 Внести шаги', 'action:log_steps')
+      .text('Нет часов', 'steps:unavailable');
+
+    try {
+      await bot.api.sendMessage(
+        user.tg_id,
+        '🚶 *Шаги за сегодня не записаны.*\n\n' +
+          'Внеси количество шагов — это влияет на статус дня и точность анализа.\n' +
+          'Норма: 6 000–8 000 шагов.',
+        { parse_mode: 'Markdown', reply_markup: keyboard },
+      );
+    } catch (err) {
+      console.error(`[23:00 cron] Failed for tg_id=${user.tg_id}:`, err);
+    }
+  }
+}
+
 // ─── 20:00 — day summary + meal 3 panic ──────────────────────────────────────
 
 export async function sendDaySummary20(): Promise<void> {
   const today = todayString();
 
-  const { data: users } = await supabase
-    .from('users')
-    .select('id, tg_id, start_date, goal_weight');
+  const { data: users } = await supabase.from('users').select('id, tg_id, start_date, goal_weight');
   if (!users) return;
 
   for (const user of users) {
@@ -242,14 +277,14 @@ export async function sendDaySummary20(): Promise<void> {
     if (summary) {
       text += buildDaySummaryText(summary, weekNumber, cycleNumber, isDietBreak);
     } else {
-      text += `📊 *Итог за сегодня*\n\nДанных нет — завтра запишем с самого утра.`;
+      text += '📊 *Итог за сегодня*\n\nДанных нет — завтра запишем с самого утра.';
       text += `\n\n📍 Неделя ${weekNumber}, Цикл ${cycleNumber}`;
     }
 
     const meal3Missing = !compliance?.meal3_logged && !compliance?.meal3_skipped;
 
     if (meal3Missing) {
-      text += `\n\n🍽️ Приём 3 (18:30) не записан — добавь сейчас или отметь пропуск.`;
+      text += '\n\n🍽️ Приём 3 (18:30) не записан — добавь сейчас или отметь пропуск.';
       keyboard.text('🍽️ Записать', 'action:food_menu').text('Пропустил', 'food:skip_meal3').row();
     }
 

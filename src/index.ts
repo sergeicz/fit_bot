@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import cron from 'node-cron';
 import { bot } from './bot';
-import { loadKnowledgeBase } from './services/knowledge.service';
 import {
   sendDaySummary20,
   sendMeal1Repeat14,
@@ -9,8 +8,10 @@ import {
   sendMeal2Repeat1730,
   sendMeal3Reminder1930,
   sendMealAndWeightPanic13,
+  sendStepsReminder23,
 } from './cron/meals';
 import { sendMorningHard, sendMorningReminder, sendMorningRepeat } from './cron/morning';
+import { loadKnowledgeBase } from './services/knowledge.service';
 
 // ─── Cron jobs ────────────────────────────────────────────────────────────────
 // All times are in the server's local timezone.
@@ -61,6 +62,11 @@ cron.schedule('0 20 * * *', () => {
   sendDaySummary20().catch(console.error);
 });
 
+// 23:00 — steps reminder if not logged
+cron.schedule('0 23 * * *', () => {
+  sendStepsReminder23().catch(console.error);
+});
+
 // ─── Load knowledge base ──────────────────────────────────────────────────────
 loadKnowledgeBase().catch(console.error);
 
@@ -77,8 +83,7 @@ async function startBot(attempt = 1): Promise<void> {
     });
   } catch (err: unknown) {
     // 409 = another instance still running (happens during Railway deploys)
-    const is409 =
-      err instanceof Error && err.message.includes('409');
+    const is409 = err instanceof Error && err.message.includes('409');
     if (is409 && attempt <= 5) {
       const delay = attempt * 3000;
       console.warn(`[Bot] 409 conflict, retrying in ${delay / 1000}s (attempt ${attempt}/5)...`);
