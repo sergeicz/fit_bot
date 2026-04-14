@@ -3,6 +3,11 @@ import { getAICommentary } from '../../services/ai.service';
 import { isEatingWindow } from '../../utils/day-type';
 import { foodNutritionHandler, foodTextHandler } from '../commands/food';
 import { foodSearchGramsHandler, foodSearchHandler } from '../commands/food-search';
+import {
+  recipeIngredientsHandler,
+  recipeNameHandler,
+  recipePortionHandler,
+} from '../commands/recipes';
 import { stepsTextHandler } from '../commands/steps';
 import { handleWeightInput } from '../commands/weight';
 import type { BotContext } from '../types';
@@ -53,12 +58,18 @@ export async function inputDetector(ctx: BotContext, next: NextFunction): Promis
     return;
   }
 
-  if (
-    ctx.session.step === 'awaiting_recipe_name' ||
-    ctx.session.step === 'awaiting_recipe_ingredients' ||
-    ctx.session.step === 'awaiting_recipe_portion'
-  ) {
-    await next(); // recipe handlers are registered separately in bot/index.ts
+  if (ctx.session.step === 'awaiting_recipe_name') {
+    await recipeNameHandler(ctx);
+    return;
+  }
+
+  if (ctx.session.step === 'awaiting_recipe_ingredients') {
+    await recipeIngredientsHandler(ctx);
+    return;
+  }
+
+  if (ctx.session.step === 'awaiting_recipe_portion') {
+    await recipePortionHandler(ctx);
     return;
   }
 
