@@ -13,12 +13,13 @@ interface SaveWeightParams {
   date: string;
   weight: number;
   isFasted: boolean;
+  startDate: Date;
 }
 
 export const weightService = {
   /** Saves (or overwrites) today's weight entry. */
   async saveWeight(params: SaveWeightParams): Promise<void> {
-    const { userId, date, weight, isFasted } = params;
+    const { userId, date, weight, isFasted, startDate } = params;
 
     await supabase
       .from('weights')
@@ -27,14 +28,17 @@ export const weightService = {
         { onConflict: 'user_id,date' },
       );
 
-    // Update daily_summary.weight
+    // Update daily_summary.weight with correct cycle-based target calories
+    const dayDate = new Date(date);
+    const dayType = getDayType(dayDate);
+    const weekNumber = getWeekNumber(startDate, dayDate);
     await supabase.from('daily_summary').upsert(
       {
         user_id: userId,
         date,
         weight,
-        day_type: getDayType(new Date(date)),
-        target_calories: getTargetCalories(getDayType(new Date(date)), 1),
+        day_type: dayType,
+        target_calories: getTargetCalories(dayType, weekNumber),
       },
       { onConflict: 'user_id,date' },
     );
@@ -148,8 +152,8 @@ export function buildWeightConfirmText(params: {
 
   if (isDietBreak) {
     text += `📍 Неделя ${weekNumber} — *Diet Break* 🔄\n`;
-    text += `Цель на неделю: 2200–2400 ккал (восстановление гормонов)\n`;
-    text += `\n⚠️ Вес может вырасти на 1–2 кг — это вода и гликоген, не жир. Норма!`;
+    text += 'Цель на неделю: 2200–2400 ккал (восстановление гормонов)\n';
+    text += '\n⚠️ Вес может вырасти на 1–2 кг — это вода и гликоген, не жир. Норма!';
   } else {
     const remaining = Math.max(0, weight - goalWeight);
     text += `📍 Неделя ${weekNumber}, Цикл ${cycleNumber}\n`;

@@ -1,4 +1,5 @@
 import { InlineKeyboard } from 'grammy';
+import { checkAdaptation } from '../../services/adaptation.service';
 import { getAICommentary } from '../../services/ai.service';
 import { buildWeightConfirmText, weightService } from '../../services/weight.service';
 import { getCycleInfo, getWeekNumber, todayString } from '../../utils/day-type';
@@ -45,10 +46,10 @@ export async function handleWeightInput(ctx: BotContext): Promise<void> {
   const startDate = new Date(start_date);
 
   // Save first so subsequent queries see the new weight
-  await weightService.saveWeight({ userId, date: today, weight, isFasted });
+  await weightService.saveWeight({ userId, date: today, weight, isFasted, startDate });
 
-  // Then fetch trend, history and AI commentary in parallel
-  const [trend, history, aiComment] = await Promise.all([
+  // Then fetch trend, history, AI commentary and adaptation check in parallel
+  const [trend, history, aiComment, adaptation] = await Promise.all([
     weightService.getWeightTrend(userId),
     weightService.getWeightHistory(userId, 2),
     getAICommentary({
@@ -58,6 +59,7 @@ export async function handleWeightInput(ctx: BotContext): Promise<void> {
       goalWeight: goal_weight,
       eventDetail: `записал вес ${weight} кг${isFasted ? ' (натощак)' : ' (не натощак)'}`,
     }),
+    checkAdaptation(userId),
   ]);
 
   const weekNumber = getWeekNumber(startDate, new Date());
@@ -68,24 +70,27 @@ export async function handleWeightInput(ctx: BotContext): Promise<void> {
   if (history.length === 2 && history[0].weight > history[1].weight) {
     const diff = (history[0].weight - history[1].weight).toFixed(1);
     if (isDietBreak || weekNumber === 14) {
-      extraNote =
-        `\n\n⚠️ +${diff} кг — это вода и гликоген от diet break.\n` +
-        `Жир не растёт. Продолжай план, к концу недели уйдёт.`;
+      extraNote = `\n\n⚠️ +${diff} кг — это вода и гликоген от diet break.\nЖир не растёт. Продолжай план, к концу недели уйдёт.`;
     }
   }
 
-  let confirmText = buildWeightConfirmText({
-    weight,
-    isFasted,
-    trend,
-    weekNumber,
-    cycleNumber,
-    isDietBreak,
-    goalWeight: goal_weight,
-  }) + extraNote;
+  let confirmText =
+    buildWeightConfirmText({
+      weight,
+      isFasted,
+      trend,
+      weekNumber,
+      cycleNumber,
+      isDietBreak,
+      goalWeight: goal_weight,
+    }) + extraNote;
 
   if (aiComment) {
     confirmText += `\n\n🤖 _${aiComment}_`;
+  }
+
+  if (adaptation.recommendation) {
+    confirmText += `\n\n${adaptation.recommendation}`;
   }
 
   await ctx.reply(confirmText, {
