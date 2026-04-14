@@ -14,7 +14,7 @@ import {
   sendStepsReminder23,
 } from './cron/meals';
 import { sendMorningHard, sendMorningReminder, sendMorningRepeat } from './cron/morning';
-import { sendWeeklyReport } from './cron/weekly';
+import { sendMeasurementsReminder, sendWeeklyReport } from './cron/weekly';
 import { loadKnowledgeBase } from './services/knowledge.service';
 
 // ─── Cron jobs ────────────────────────────────────────────────────────────────
@@ -69,6 +69,11 @@ cron.schedule('0 20 * * *', () => {
 // 23:00 — steps reminder if not logged
 cron.schedule('0 23 * * *', () => {
   sendStepsReminder23().catch(console.error);
+});
+
+// Sat 09:00 — measurements reminder (if not done this week)
+cron.schedule('0 9 * * 6', () => {
+  sendMeasurementsReminder().catch(console.error);
 });
 
 // Sun 20:00 — weekly report

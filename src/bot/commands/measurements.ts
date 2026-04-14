@@ -37,12 +37,13 @@ export async function measurementsMenuHandler(ctx: BotContext): Promise<void> {
       : 'Замеров пока нет.';
 
   await ctx.editMessageText(
-    `📏 *Замеры тела*\n\n${lastText}\n\n_Снимай раз в неделю, утром натощак, после туалета._`,
+    `📏 *Замеры тела*\n\n${lastText}\n\n_Снимай раз в неделю — в субботу или воскресенье, утром после взвешивания._`,
     { parse_mode: 'Markdown', reply_markup: kb },
   );
 }
 
 // ─── Callback: start logging flow ─────────────────────────────────────────────
+
 
 export async function logMeasurementsHandler(ctx: BotContext): Promise<void> {
   await ctx.answerCallbackQuery();
@@ -59,7 +60,7 @@ export async function logMeasurementsHandler(ctx: BotContext): Promise<void> {
 
   ctx.session.step = 'awaiting_measurements_waist';
   await ctx.reply(
-    '📏 *Замеры*\n\nВведи обхват талии в сантиметрах:\n_Измеряй на уровне пупка, выдохни воздух_\n_Пример: 89_',
+    '📏 *Замеры* (раз в неделю, в выходной после взвешивания)\n\nВведи обхват талии в сантиметрах:\n_Измеряй на уровне пупка, выдохни воздух_\n_Пример: 89_',
     { parse_mode: 'Markdown', reply_markup: cancelKeyboard() },
   );
 }

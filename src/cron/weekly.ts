@@ -24,6 +24,41 @@ function formatDay(dateStr: string): string {
   return `${day} ${date}`;
 }
 
+// ─── Saturday measurement reminder ───────────────────────────────────────────
+
+export async function sendMeasurementsReminder(): Promise<void> {
+  const { data: users } = await supabase.from('users').select('id, tg_id');
+  if (!users) return;
+
+  for (const user of users) {
+    // Check if measurements were already taken this week (last 6 days)
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 6);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+
+    const { data: recent } = await supabase
+      .from('measurements')
+      .select('date')
+      .eq('user_id', user.id)
+      .gte('date', cutoffStr)
+      .limit(1);
+
+    if (recent && recent.length > 0) continue; // already done this week
+
+    const kb = new InlineKeyboard().text('📏 Внести замеры', 'action:log_measurements');
+
+    try {
+      await bot.api.sendMessage(
+        user.tg_id,
+        '📏 *Замеры на выходных*\n\nНе забудь измерить талию и шею — после взвешивания, натощак.\nЭто займёт 2 минуты и покажет реальный прогресс по % жира.',
+        { parse_mode: 'Markdown', reply_markup: kb },
+      );
+    } catch (err) {
+      console.error(`[measurements reminder] Failed for tg_id=${user.tg_id}:`, err);
+    }
+  }
+}
+
 // ─── Weekly report ────────────────────────────────────────────────────────────
 
 export async function sendWeeklyReport(): Promise<void> {
